@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Homelab{% endblock %}
+
+{% block content %}
+<div class="home-header">
+    <h2>Welcome to Homelab</h2>
+    <p>Your personal home infrastructure dashboard</p>
+</div>
+
+<div class="services-grid">
+    {% for service in services %}
+    <div class="service-card">
+        <div class="service-icon">
+            {% if service.icon %}
+                <i class="{{ service.icon }}"></i>
+            {% else %}
+                <i class="fas fa-server"></i>
+            {% endif %}
+        </div>
+        <h3 class="service-name">{{ service.name }}</h3>
+        {% if service.description %}
+            <p class="service-description">{{ service.description }}</p>
+        {% endif %}
+        {% if service.url %}
+            <a href="{{ service.url }}" class="service-link" target="_blank">
+                Open Service <i class="fas fa-external-link-alt"></i>
+            </a>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="no-services">
+        <p>No services configured yet.</p>
+        {% if user.is_authenticated %}
+            <p><a href="{% url 'admin:core_service_add' %}">Add a service</a></p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
