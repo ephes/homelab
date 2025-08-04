@@ -86,13 +86,13 @@ docs-serve:
 docs-open: docs
     open docs/_build/html/index.html
 
-# Production deployment
+# Deploy to macmini
 deploy:
-    cd deploy && ansible-playbook deploy.yml --limit production
+    cd deploy && ansible-playbook deploy.yml
 
-# Backup production database
+# Backup database (SQLite)
 backup:
-    cd deploy && ansible-playbook backup_database.yml --limit production
+    @echo "Database backup not yet implemented for SQLite"
 
 # Restore database from backup
 restore:

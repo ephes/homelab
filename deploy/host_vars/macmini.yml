@@ -1,0 +1,6 @@
+fqdn: "*"  # Allow all hosts for local network access
+deploy_environment: "macmini"
+username: "homelab"
+host_name: macmini
+django_settings_module: "config.settings.production"
+# app_port is defined in vars.yml as 10010
