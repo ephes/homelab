@@ -1,0 +1,152 @@
+---
+# DNS Server (Pi-hole) deployment tasks
+
+- name: Check if systemd-resolved is running
+  systemd:
+    name: systemd-resolved
+  register: systemd_resolved_status
+  failed_when: false
+
+- name: Disable systemd-resolved if running
+  when: systemd_resolved_status.status.ActiveState is defined and systemd_resolved_status.status.ActiveState == "active"
+  block:
+    - name: Stop and disable systemd-resolved
+      systemd:
+        name: systemd-resolved
+        state: stopped
+        enabled: no
+
+    - name: Remove existing resolv.conf symlink
+      file:
+        path: /etc/resolv.conf
+        state: absent
+
+    - name: Create new resolv.conf
+      copy:
+        content: |
+          nameserver 127.0.0.1
+          nameserver 1.1.1.1
+          nameserver 1.0.0.1
+        dest: /etc/resolv.conf
+        mode: '0644'
+
+- name: Install Pi-hole dependencies
+  apt:
+    name:
+      - curl
+      - git
+      - dnsutils
+      - lsof
+      - netcat-openbsd
+    state: present
+    update_cache: yes
+
+- name: Create Pi-hole directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ pihole_config_dir }}"
+    - "{{ pihole_dnsmasq_dir }}"
+    - /opt/pihole
+
+- name: Create Pi-hole setup variables file
+  template:
+    src: pihole-setupVars.conf.j2
+    dest: "{{ pihole_config_dir }}/setupVars.conf"
+    mode: '0644'
+
+- name: Download Pi-hole installer
+  get_url:
+    url: https://install.pi-hole.net
+    dest: /tmp/pihole-install.sh
+    mode: '0755'
+
+- name: Run Pi-hole installer (unattended)
+  shell: /tmp/pihole-install.sh --unattended
+  args:
+    creates: /usr/local/bin/pihole
+  environment:
+    PIHOLE_SKIP_OS_CHECK: "true"
+
+- name: Wait for Pi-hole to be fully installed
+  wait_for:
+    path: /etc/pihole/pihole.toml
+    state: present
+    timeout: 30
+
+- name: Enable dnsmasq.d directory in Pi-hole v6
+  lineinfile:
+    path: /etc/pihole/pihole.toml
+    regexp: '^\s*etc_dnsmasq_d\s*='
+    line: '  etc_dnsmasq_d = true'
+    state: present
+
+- name: Configure local DNS wildcard resolution
+  template:
+    src: 02-local-wildcard.conf.j2
+    dest: "{{ pihole_dnsmasq_dir }}/02-local-wildcard.conf"
+    mode: '0644'
+
+# Web interface is disabled - no password needed
+
+- name: Update Pi-hole blocklists
+  shell: pihole -g
+  changed_when: false
+
+- name: Add local DNS entries to custom.list
+  lineinfile:
+    path: /etc/pihole/custom.list
+    line: "{{ item }}"
+    create: yes
+    mode: '0644'
+  loop:
+    - "{{ macmini_internal_ip }} home.wersdörfer.de"
+    - "{{ macmini_internal_ip }} home.xn--wersdrfer-47a.de"
+    - "{{ macmini_internal_ip }} wersdörfer.de"
+    - "{{ macmini_internal_ip }} xn--wersdrfer-47a.de"
+  notify: restart pihole-FTL
+
+- name: Configure firewall for DNS
+  ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: 53, proto: tcp }
+    - { port: 53, proto: udp }
+    - { port: 67, proto: udp }    # DHCP (if needed)
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Ensure Pi-hole FTL service is running
+  systemd:
+    name: pihole-FTL
+    state: started
+    enabled: yes
+
+# Lighttpd is not installed - web interface disabled
+
+- name: Create DNS test script
+  copy:
+    content: |
+      #!/bin/bash
+      echo "Testing DNS resolution..."
+      echo "========================="
+      echo ""
+      echo "Local domain resolution:"
+      dig @127.0.0.1 {{ dns_local_domain }} +short
+      dig @127.0.0.1 test.{{ dns_local_domain }} +short
+      dig @127.0.0.1 paperless.{{ dns_local_domain }} +short
+      echo ""
+      echo "External domain resolution:"
+      dig @127.0.0.1 google.com +short
+      dig @127.0.0.1 cloudflare.com +short
+      echo ""
+      echo "Pi-hole status:"
+      pihole status
+    dest: "{{ site_path }}/bin/test-dns.sh"
+    mode: '0755'
+    owner: "{{ username }}"
+
+# Note: The handler "restart pihole-FTL" is defined in the main playbook

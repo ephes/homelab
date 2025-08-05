@@ -131,11 +131,16 @@
       systemd:
         daemon_reload: yes
 
-    - name: Make sure granian service is running
+    - name: Ensure granian service is started and enabled
       systemd:
-        state: restarted
         name: "{{ username }}"
+        state: started
         enabled: yes
+
+    - name: Restart granian service
+      systemd:
+        name: "{{ username }}"
+        state: restarted
 
     - name: Check if service is running
       uri:
@@ -197,3 +202,14 @@
       systemd:
         name: ddns-home.service
         state: started
+
+    # DNS Server (Pi-hole) Setup
+    - name: Include DNS server tasks
+      include_tasks: tasks/dns-server.yml
+      when: dns_server_enabled | default(false)
+      
+  handlers:
+    - name: restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted

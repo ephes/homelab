@@ -120,3 +120,22 @@ help:
     @echo "Deployment:"
     @echo "  just deploy       # Deploy to production"
     @echo "  just backup       # Backup production database"
+    @echo ""
+    @echo "DNS Testing:"
+    @echo "  just dns-test     # Test DNS resolution"
+    @echo "  just dns-status   # Check DNS server status"
+
+# Test DNS resolution
+dns-test:
+    @echo "Testing external DNS resolution..."
+    @dig +short home.wersdörfer.de @8.8.8.8
+    @echo ""
+    @echo "Testing local DNS resolution (if configured)..."
+    @dig +short home.wersdörfer.de @127.0.0.1 2>/dev/null || echo "Local DNS not configured on this machine"
+    @echo ""
+    @echo "For full DNS testing on macmini, run:"
+    @echo "ssh homelab@macmini.fritz.box './site/bin/test-dns.sh'"
+
+# Check DNS server status on macmini
+dns-status:
+    ssh root@macmini.fritz.box "pihole status" || echo "Pi-hole not installed or SSH not configured"

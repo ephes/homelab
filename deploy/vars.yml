@@ -23,3 +23,19 @@ ddns_ttl: 300
 ddns_log_dir: "{{ site_path }}/logs/ddns"
 ddns_config_dir: "{{ site_path }}/config/ddns"
 ddns_script_path: "{{ site_path }}/bin/ddns-home.sh"
+
+# DNS Server configuration (Pi-hole)
+dns_server_enabled: true
+pihole_install_dir: "/opt/pihole"
+pihole_config_dir: "/etc/pihole"
+pihole_dnsmasq_dir: "/etc/dnsmasq.d"
+pihole_log_dir: "/var/log/pihole"
+# Get the internal IP dynamically, or set it explicitly
+macmini_internal_ip: "{{ ansible_default_ipv4.address | default('192.168.178.50') }}"
+dns_local_domain: "home.{{ ddns_domain }}"
+# Service port allocations for future services
+service_ports:
+  homelab: 10010
+  # Future services can be added here
+  # monitoring: 10011
+  # paperless: 10012

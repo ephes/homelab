@@ -1,0 +1,22 @@
+# Local DNS resolution for {{ dns_local_domain }}
+# This ensures all subdomains resolve to the macmini's internal IP
+
+# Wildcard for all subdomains (both regular and punycode)
+address=/{{ dns_local_domain }}/{{ macmini_internal_ip }}
+address=/{{ ddns_domain }}/{{ macmini_internal_ip }}
+# Handle punycode version of wersdörfer.de
+address=/xn--wersdrfer-47a.de/{{ macmini_internal_ip }}
+address=/home.xn--wersdrfer-47a.de/{{ macmini_internal_ip }}
+
+# Prevent upstream lookups for these domains
+local=/{{ ddns_domain }}/
+local=/xn--wersdrfer-47a.de/
+
+# Host records for specific entries
+host-record={{ dns_local_domain }},{{ macmini_internal_ip }}
+host-record=macmini.fritz.box,{{ macmini_internal_ip }}
+
+# Additional service-specific entries can be added here
+{% for service, port in service_ports.items() %}
+# {{ service }}.{{ dns_local_domain }} handled by wildcard
+{% endfor %}
