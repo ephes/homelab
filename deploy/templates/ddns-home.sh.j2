@@ -29,49 +29,49 @@ if [ -z "${IP4:-}" ] && [ -z "${IP6:-}" ]; then
     exit 1
 fi
 
-# Gandi API endpoint
-BASE="https://api.gandi.net/v5/livedns/domains/$ZONE/records/$NAME"
+# Gandi API endpoint base
+API_BASE="https://api.gandi.net/v5/livedns/domains/$ZONE/records"
 
 # Track if any updates were made
 UPDATED=false
 
-# Update IPv4 record
-if [ -n "${IP4:-}" ]; then
-    log "Updating IPv4 record..."
-    RESPONSE=$(curl -sX PUT "$BASE/A" \
+# Function to update DNS record
+update_record() {
+    local subdomain=$1
+    local record_type=$2
+    local ip_value=$3
+    
+    log "Updating $record_type record for ${subdomain}.${ZONE}..."
+    RESPONSE=$(curl -sX PUT "$API_BASE/$subdomain/$record_type" \
         -H "Authorization: Bearer $KEY" \
         -H "Content-Type: application/json" \
-        -d "{\"rrset_ttl\":{{ ddns_ttl }},\"rrset_values\":[\"$IP4\"]}" \
+        -d "{\"rrset_ttl\":{{ ddns_ttl }},\"rrset_values\":[\"$ip_value\"]}" \
         -w "\nHTTP_CODE:%{http_code}")
     
     HTTP_CODE=$(echo "$RESPONSE" | grep -oP 'HTTP_CODE:\K\d+' || echo "000")
     if [ "$HTTP_CODE" -eq 201 ] || [ "$HTTP_CODE" -eq 200 ]; then
-        log "IPv4 record updated successfully to $IP4"
+        log "$record_type record for ${subdomain}.${ZONE} updated successfully to $ip_value"
         UPDATED=true
     else
-        log "ERROR: Failed to update IPv4 record. HTTP code: $HTTP_CODE"
+        log "ERROR: Failed to update $record_type record for ${subdomain}.${ZONE}. HTTP code: $HTTP_CODE"
         echo "$RESPONSE" | grep -v "HTTP_CODE:" >> "$LOG_FILE"
     fi
-fi
+}
 
-# Update IPv6 record (if available)
-if [ -n "${IP6:-}" ]; then
-    log "Updating IPv6 record..."
-    RESPONSE=$(curl -sX PUT "$BASE/AAAA" \
-        -H "Authorization: Bearer $KEY" \
-        -H "Content-Type: application/json" \
-        -d "{\"rrset_ttl\":{{ ddns_ttl }},\"rrset_values\":[\"$IP6\"]}" \
-        -w "\nHTTP_CODE:%{http_code}")
-    
-    HTTP_CODE=$(echo "$RESPONSE" | grep -oP 'HTTP_CODE:\K\d+' || echo "000")
-    if [ "$HTTP_CODE" -eq 201 ] || [ "$HTTP_CODE" -eq 200 ]; then
-        log "IPv6 record updated successfully to $IP6"
-        UPDATED=true
-    else
-        log "ERROR: Failed to update IPv6 record. HTTP code: $HTTP_CODE"
-        echo "$RESPONSE" | grep -v "HTTP_CODE:" >> "$LOG_FILE"
+# Update records for both home and *.home
+SUBDOMAINS=("$NAME" "*.$NAME")
+
+for SUBDOMAIN in "${SUBDOMAINS[@]}"; do
+    # Update IPv4 record
+    if [ -n "${IP4:-}" ]; then
+        update_record "$SUBDOMAIN" "A" "$IP4"
     fi
-fi
+    
+    # Update IPv6 record (if available)
+    if [ -n "${IP6:-}" ]; then
+        update_record "$SUBDOMAIN" "AAAA" "$IP6"
+    fi
+done
 
 if [ "$UPDATED" = true ]; then
     log "DNS update completed successfully"
