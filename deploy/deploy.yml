@@ -207,9 +207,22 @@
     - name: Include DNS server tasks
       include_tasks: tasks/dns-server.yml
       when: dns_server_enabled | default(false)
+    
+    # Traefik Reverse Proxy Setup
+    - name: Include Traefik tasks
+      include_tasks: tasks/traefik.yml
       
   handlers:
     - name: restart pihole-FTL
       systemd:
         name: pihole-FTL
+        state: restarted
+    
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: restart traefik
+      systemd:
+        name: traefik
         state: restarted

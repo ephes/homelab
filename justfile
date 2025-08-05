@@ -139,3 +139,20 @@ dns-test:
 # Check DNS server status on macmini
 dns-status:
     ssh root@macmini.fritz.box "pihole status" || echo "Pi-hole not installed or SSH not configured"
+
+# Test Traefik setup
+traefik-test:
+    @echo "Testing Traefik configuration..."
+    @echo ""
+    @echo "1. Testing HTTP redirect:"
+    curl -I http://home.wersdörfer.de || echo "HTTP not accessible yet"
+    @echo ""
+    @echo "2. Testing HTTPS:"
+    curl -I https://home.wersdörfer.de || echo "HTTPS not accessible yet"
+    @echo ""
+    @echo "3. Check Traefik status on macmini:"
+    ssh root@macmini.fritz.box "systemctl status traefik --no-pager | head -20" || echo "SSH not configured"
+
+# View Traefik logs
+traefik-logs:
+    ssh root@macmini.fritz.box "journalctl -u traefik -n 50 --no-pager"

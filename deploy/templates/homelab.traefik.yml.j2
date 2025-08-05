@@ -1,0 +1,42 @@
+http:
+  routers:
+    homelab:
+      rule: "Host(`home.xn--wersdrfer-47a.de`)"
+      entryPoints:
+        - web
+      service: homelab
+    
+    homelab-secure:
+      rule: "Host(`home.xn--wersdrfer-47a.de`)"
+      entryPoints:
+        - web-secure
+      middlewares:
+        - default-headers
+        - gzip
+      service: homelab
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: "home.xn--wersdrfer-47a.de"
+  
+  middlewares:
+    default-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 15552000
+        customFrameOptionsValue: SAMEORIGIN
+        customRequestHeaders:
+          X-Forwarded-Proto: https
+    
+    gzip:
+      compress: {}
+  
+  services:
+    homelab:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:{{ app_port }}"

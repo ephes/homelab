@@ -11,20 +11,25 @@ DEBUG = False
 SECRET_KEY = env("DJANGO_SECRET_KEY")  # noqa
 
 # ALLOWED HOSTS
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS")  # noqa
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["home.wersdoerfer.de"])  # noqa
 
-# Security (disabled for local network access)
-# These can be enabled when using Traefik with SSL
-# SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
-# SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
-# SECURE_BROWSER_XSS_FILTER = True
-# SECURE_CONTENT_TYPE_NOSNIFF = True
-# SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30  # 30 days
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
-# X_FRAME_OPTIONS = "DENY"
+# Security - Enabled for Traefik with SSL
+SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)  # noqa
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30  # 30 days
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+X_FRAME_OPTIONS = "DENY"
+
+# CSRF - Trust the reverse proxy
+CSRF_TRUSTED_ORIGINS = [
+    "https://home.wersdoerfer.de",
+    "https://*.home.wersdoerfer.de",
+]
 
 # Static files - use Whitenoise for production
 STORAGES = {

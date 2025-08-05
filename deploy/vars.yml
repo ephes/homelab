@@ -39,3 +39,8 @@ service_ports:
   # Future services can be added here
   # monitoring: 10011
   # paperless: 10012
+
+# Traefik configuration
+traefik_version: "3.3.5"
+traefik_domain: "home.{{ ddns_domain }}"
+letsencrypt_email: "jochen-traefik@wersdoerfer.de"

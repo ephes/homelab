@@ -1,0 +1,144 @@
+---
+# Traefik installation and configuration tasks
+
+- name: Create Traefik directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /etc/traefik
+    - /etc/traefik/dynamic
+    - /etc/traefik/acme
+    - /var/log/traefik
+
+- name: Set permissions on acme directory
+  file:
+    path: /etc/traefik/acme
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Check if Traefik is already installed
+  stat:
+    path: /usr/local/bin/traefik
+  register: traefik_binary
+
+- name: Download and install Traefik
+  when: not traefik_binary.stat.exists or traefik_force_update | default(false)
+  block:
+    - name: Download Traefik binary
+      get_url:
+        url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}/traefik_v{{ traefik_version }}_linux_amd64.tar.gz"
+        dest: /tmp/traefik.tar.gz
+        mode: '0644'
+    
+    - name: Extract Traefik
+      unarchive:
+        src: /tmp/traefik.tar.gz
+        dest: /usr/local/bin
+        remote_src: yes
+        owner: root
+        group: root
+        mode: '0755'
+        creates: /usr/local/bin/traefik
+    
+    - name: Clean up download
+      file:
+        path: /tmp/traefik.tar.gz
+        state: absent
+
+- name: Deploy Traefik static configuration
+  template:
+    src: traefik.toml.j2
+    dest: /etc/traefik/traefik.toml
+    owner: root
+    group: root
+    mode: '0644'
+  notify: restart traefik
+
+- name: Deploy Traefik systemd service
+  template:
+    src: traefik.service.j2
+    dest: /etc/systemd/system/traefik.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify:
+    - reload systemd
+    - restart traefik
+
+- name: Deploy homelab Traefik configuration
+  template:
+    src: homelab.traefik.yml.j2
+    dest: /etc/traefik/dynamic/homelab.yml
+    owner: root
+    group: root
+    mode: '0644'
+  # Traefik automatically watches this directory, no reload needed
+
+- name: Create acme.json if it doesn't exist
+  file:
+    path: /etc/traefik/acme/acme.json
+    state: touch
+    owner: root
+    group: root
+    mode: '0600'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Configure log rotation for Traefik
+  copy:
+    content: |
+      /var/log/traefik/*.log {
+          daily
+          rotate 7
+          compress
+          delaycompress
+          missingok
+          notifempty
+          create 0644 root root
+          postrotate
+              systemctl reload traefik > /dev/null 2>&1 || true
+          endscript
+      }
+    dest: /etc/logrotate.d/traefik
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Configure firewall for Traefik
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - 80   # HTTP (Let's Encrypt challenges)
+    - 443  # HTTPS
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Enable and start Traefik
+  systemd:
+    name: traefik
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
+- name: Wait for Traefik to be ready
+  wait_for:
+    port: 80
+    host: 127.0.0.1
+    delay: 2
+    timeout: 30
+
+- name: Check Traefik status
+  systemd:
+    name: traefik
+  register: traefik_status
+
+- name: Display Traefik status
+  debug:
+    msg: "Traefik is {{ traefik_status.status.ActiveState }}"
