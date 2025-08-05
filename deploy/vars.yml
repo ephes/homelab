@@ -15,3 +15,11 @@ django_settings_module: "config.settings.production"
 systemd_unit_path: "/etc/systemd/system/{{ username }}.service"
 granian_number_of_workers: 4
 django_allowed_host: "127.0.0.1"
+
+# Dynamic DNS configuration
+ddns_domain: "wersdörfer.de"
+ddns_subdomain: "home"
+ddns_ttl: 300
+ddns_log_dir: "{{ site_path }}/logs/ddns"
+ddns_config_dir: "{{ site_path }}/config/ddns"
+ddns_script_path: "{{ site_path }}/bin/ddns-home.sh"
