@@ -6,11 +6,17 @@ http:
         - web
       service: homelab
     
+    # HTTPS router with basic auth for all users
+    # Note: Conditional auth (Tailscale bypass) requires either:
+    # - A custom forwardAuth service
+    # - Application-level IP detection
+    # - Traefik plugin for conditional authentication
     homelab-secure:
       rule: "Host(`home.xn--wersdrfer-47a.de`)"
       entryPoints:
         - web-secure
       middlewares:
+        - basic-auth
         - default-headers
         - gzip
       service: homelab
@@ -20,6 +26,12 @@ http:
           - main: "home.xn--wersdrfer-47a.de"
   
   middlewares:
+    basic-auth:
+      basicAuth:
+        users:
+          - "{{ traefik_basic_auth_user }}:{{ traefik_basic_auth_password_hash }}"
+        removeHeader: true
+    
     default-headers:
       headers:
         browserXssFilter: true

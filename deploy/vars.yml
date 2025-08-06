@@ -51,3 +51,10 @@ macmini_tailscale_ip: "{{ tailscale_ip | default('100.119.21.93') }}"
 traefik_version: "3.3.5"
 traefik_domain: "home.{{ ddns_domain }}"
 letsencrypt_email: "jochen-traefik@wersdoerfer.de"
+
+# Basic auth configuration for external access
+traefik_basic_auth_user: "admin"
+# Password is stored in secrets.yml (encrypted with ansible-vault)
+
+# Tailscale IP range for whitelisting (CGNAT range)
+tailscale_ip_range: "100.64.0.0/10"
