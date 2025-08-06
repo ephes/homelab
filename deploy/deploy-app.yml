@@ -102,17 +102,19 @@
       become_user: "{{ username }}"
 
     - name: Run Django migrations
-      shell: "{{ python }} manage.py migrate"
+      shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py migrate"
       args:
         chdir: "{{ site_path }}"
+        executable: /bin/bash
       environment:
         DJANGO_SETTINGS_MODULE: "{{ django_settings_module }}"
       become_user: "{{ username }}"
 
     - name: Collect static files
-      shell: "{{ python }} manage.py collectstatic --noinput"
+      shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py collectstatic --noinput"
       args:
         chdir: "{{ site_path }}"
+        executable: /bin/bash
       environment:
         DJANGO_SETTINGS_MODULE: "{{ django_settings_module }}"
       become_user: "{{ username }}"
@@ -126,6 +128,15 @@
         - restart homelab
     
     # Add homelab-specific Traefik configuration
+    - name: Ensure Traefik dynamic directory exists
+      file:
+        path: /etc/traefik/dynamic
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      become: true
+        
     - name: Deploy homelab Traefik configuration
       template:
         src: templates/homelab.traefik.yml.j2
@@ -134,6 +145,7 @@
         group: root
         mode: '0644'
       notify: reload traefik config
+      become: true
       
   handlers:
     - name: reload systemd
