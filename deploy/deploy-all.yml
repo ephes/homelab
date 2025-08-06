@@ -1,0 +1,8 @@
+---
+# Deploy all homelab components
+# This playbook calls all individual deployment playbooks in the correct order
+
+- import_playbook: deploy-traefik.yml
+- import_playbook: deploy-pihole.yml  
+- import_playbook: deploy-dyndns.yml
+- import_playbook: deploy-app.yml

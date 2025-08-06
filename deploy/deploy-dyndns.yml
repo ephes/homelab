@@ -1,0 +1,64 @@
+---
+# Deploy Dynamic DNS updater
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Include shared secret vars"
+      include_vars: secrets.yml
+      
+    - name: "Include host-specific vars (loaded last to override)"
+      include_vars: "host_vars/macmini.yml"
+
+    - name: Create DDNS directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: "{{ username }}"
+      loop:
+        - "{{ site_path }}/bin"
+        - "{{ ddns_log_dir }}"
+        - "{{ ddns_config_dir }}"
+
+    - name: Deploy DDNS update script
+      template:
+        src: templates/ddns-home.sh.j2
+        dest: "{{ ddns_script_path }}"
+        mode: "0755"
+        owner: "{{ username }}"
+
+    - name: Deploy DDNS Gandi API token environment file
+      template:
+        src: templates/ddns-gandi.env.j2
+        dest: "{{ ddns_config_dir }}/gandi.env"
+        mode: "0600"
+        owner: "{{ username }}"
+
+    - name: Deploy DDNS systemd service
+      template:
+        src: templates/ddns-home.service.j2
+        dest: "/etc/systemd/system/ddns-home.service"
+        mode: "0644"
+
+    - name: Deploy DDNS systemd timer
+      template:
+        src: templates/ddns-home.timer.j2
+        dest: "/etc/systemd/system/ddns-home.timer"
+        mode: "0644"
+
+    - name: Reload systemd daemon for DDNS
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start DDNS timer
+      systemd:
+        name: ddns-home.timer
+        state: started
+        enabled: yes
+
+    - name: Trigger initial DDNS update
+      systemd:
+        name: ddns-home.service
+        state: started

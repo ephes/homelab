@@ -86,9 +86,29 @@ docs-serve:
 docs-open: docs
     open docs/_build/html/index.html
 
-# Deploy to macmini
+# Deploy to macmini - app only (default)
 deploy:
     cd deploy && ansible-playbook deploy.yml
+
+# Deploy all components
+deploy-all:
+    cd deploy && ansible-playbook deploy-all.yml
+
+# Deploy only the Django app
+deploy-app:
+    cd deploy && ansible-playbook deploy-app.yml
+
+# Deploy only DynDNS
+deploy-dyndns:
+    cd deploy && ansible-playbook deploy-dyndns.yml
+
+# Deploy only Pi-hole DNS server
+deploy-pihole:
+    cd deploy && ansible-playbook deploy-pihole.yml
+
+# Deploy only Traefik reverse proxy
+deploy-traefik:
+    cd deploy && ansible-playbook deploy-traefik.yml
 
 # Backup database (SQLite)
 backup:
@@ -118,7 +138,12 @@ help:
     @echo "  just docs-open    # Build and open docs in browser"
     @echo ""
     @echo "Deployment:"
-    @echo "  just deploy       # Deploy to production"
+    @echo "  just deploy       # Deploy app only (default)"
+    @echo "  just deploy-all   # Deploy all components"
+    @echo "  just deploy-app   # Deploy Django app"
+    @echo "  just deploy-dyndns # Deploy DynDNS"
+    @echo "  just deploy-pihole # Deploy Pi-hole DNS"
+    @echo "  just deploy-traefik # Deploy Traefik"
     @echo "  just backup       # Backup production database"
     @echo ""
     @echo "DNS Testing:"

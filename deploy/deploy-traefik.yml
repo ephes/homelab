@@ -1,0 +1,26 @@
+---
+# Deploy Traefik reverse proxy
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Include shared secret vars"
+      include_vars: secrets.yml
+      
+    - name: "Include host-specific vars (loaded last to override)"
+      include_vars: "host_vars/macmini.yml"
+
+    # Traefik Reverse Proxy Setup
+    - name: Include Traefik tasks
+      include_tasks: tasks/traefik.yml
+      
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+    
+    - name: restart traefik
+      systemd:
+        name: traefik
+        state: restarted

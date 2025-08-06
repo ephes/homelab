@@ -1,0 +1,23 @@
+---
+# Deploy Pi-hole DNS server
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Include shared secret vars"
+      include_vars: secrets.yml
+      
+    - name: "Include host-specific vars (loaded last to override)"
+      include_vars: "host_vars/macmini.yml"
+
+    # DNS Server (Pi-hole) Setup
+    - name: Include DNS server tasks
+      include_tasks: tasks/dns-server.yml
+      when: dns_server_enabled | default(false)
+      
+  handlers:
+    - name: restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted
