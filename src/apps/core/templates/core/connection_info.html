@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Connection Info - Homelab{% endblock %}
+
+{% block content %}
+<div class="home-header">
+    <h2>Connection Information</h2>
+    <p>Details about your current connection to the homelab</p>
+</div>
+
+<div class="services-grid">
+    <div class="service-card" style="grid-column: span 2;">
+        <div class="service-icon">
+            <i class="fas fa-network-wired"></i>
+        </div>
+        <h3 class="service-name">Your Connection Details</h3>
+        
+        <div style="text-align: left; margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tbody>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; font-weight: bold;">Your IP Address:</td>
+                        <td style="padding: 10px;"><code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">{{ client_ip }}</code></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; font-weight: bold;">Connection Type:</td>
+                        <td style="padding: 10px;">
+                            {% if is_tailscale %}
+                                <span style="background: #22c55e; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">
+                                    <i class="fas fa-shield-alt"></i> Tailscale Network
+                                </span>
+                            {% elif is_local %}
+                                <span style="background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">
+                                    <i class="fas fa-home"></i> Local Network
+                                </span>
+                            {% else %}
+                                <span style="background: #f59e0b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em;">
+                                    <i class="fas fa-globe"></i> Public Internet
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; font-weight: bold;">Server Hostname:</td>
+                        <td style="padding: 10px;"><code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">{{ server_hostname }}</code></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; font-weight: bold;">Request Host:</td>
+                        <td style="padding: 10px;"><code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">{{ request_host }}</code></td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; font-weight: bold;">Protocol:</td>
+                        <td style="padding: 10px;">
+                            {% if protocol == "HTTPS" %}
+                                <span style="color: #22c55e;"><i class="fas fa-lock"></i> {{ protocol }}</span>
+                            {% else %}
+                                <span style="color: #ef4444;"><i class="fas fa-unlock"></i> {{ protocol }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; font-weight: bold;">Forwarded For:</td>
+                        <td style="padding: 10px;"><code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px;">{{ forwarded_for|default:"None" }}</code></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <a href="{% url 'core:home' %}" class="service-link">
+                <i class="fas fa-arrow-left"></i> Back to Home
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

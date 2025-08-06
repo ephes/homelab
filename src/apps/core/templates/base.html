@@ -23,12 +23,15 @@
                     <i class="fas fa-home"></i> Homelab
                 </a>
             </h1>
-            {% if user.is_authenticated %}
             <div class="nav-links">
+                <a href="{% url 'core:connection-info' %}">
+                    <i class="fas fa-info-circle"></i> Connection Info
+                </a>
+                {% if user.is_authenticated %}
                 <a href="{% url 'admin:index' %}">Admin</a>
                 <a href="{% url 'admin:logout' %}">Logout</a>
+                {% endif %}
             </div>
-            {% endif %}
         </div>
     </nav>
     
