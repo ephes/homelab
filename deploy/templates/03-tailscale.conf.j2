@@ -1,0 +1,17 @@
+# Tailscale DNS resolution for {{ dns_local_domain }}
+# This ensures all subdomains resolve to the macmini's Tailscale IP
+# when accessed via Tailscale network
+
+{% if tailscale_enabled and macmini_tailscale_ip %}
+# Return Tailscale IP for all home.wersdörfer.de queries
+address=/{{ dns_local_domain }}/{{ macmini_tailscale_ip }}
+
+# Handle punycode version
+address=/home.xn--wersdrfer-47a.de/{{ macmini_tailscale_ip }}
+
+# Note: In the future, we can add conditional responses based on source IP
+# For now, we return Tailscale IP for all queries since it should work
+# from both local network and remote via Tailscale
+{% else %}
+# Tailscale not enabled or IP not configured
+{% endif %}

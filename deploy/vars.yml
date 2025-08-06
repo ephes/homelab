@@ -40,6 +40,13 @@ service_ports:
   # monitoring: 10011
   # paperless: 10012
 
+# Tailscale configuration
+tailscale_enabled: true
+# This will be dynamically resolved during deployment
+tailscale_hostname: "macmini.tailde2ec.ts.net"
+# Fallback IP if hostname resolution fails
+macmini_tailscale_ip: "{{ tailscale_ip | default('100.119.21.93') }}"
+
 # Traefik configuration
 traefik_version: "3.3.5"
 traefik_domain: "home.{{ ddns_domain }}"

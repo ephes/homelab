@@ -89,6 +89,28 @@
     dest: "{{ pihole_dnsmasq_dir }}/02-local-wildcard.conf"
     mode: '0644'
 
+- name: Resolve Tailscale hostname to IP
+  when: tailscale_enabled
+  block:
+    - name: Get Tailscale IP from hostname
+      shell: "dig +short {{ tailscale_hostname }} | head -1"
+      register: tailscale_ip_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set Tailscale IP fact
+      set_fact:
+        resolved_tailscale_ip: "{{ tailscale_ip_result.stdout if tailscale_ip_result.stdout else macmini_tailscale_ip }}"
+
+    - name: Configure Tailscale DNS resolution
+      template:
+        src: 03-tailscale.conf.j2
+        dest: "{{ pihole_dnsmasq_dir }}/03-tailscale.conf"
+        mode: '0644'
+      vars:
+        macmini_tailscale_ip: "{{ resolved_tailscale_ip }}"
+      notify: restart pihole-FTL
+
 # Web interface is disabled - no password needed
 
 - name: Update Pi-hole blocklists
@@ -102,11 +124,12 @@
     create: yes
     mode: '0644'
   loop:
-    - "{{ macmini_internal_ip }} home.wersdörfer.de"
-    - "{{ macmini_internal_ip }} home.xn--wersdrfer-47a.de"
-    - "{{ macmini_internal_ip }} wersdörfer.de"
-    - "{{ macmini_internal_ip }} xn--wersdrfer-47a.de"
+    - "{{ resolved_tailscale_ip | default(macmini_tailscale_ip) }} home.wersdörfer.de"
+    - "{{ resolved_tailscale_ip | default(macmini_tailscale_ip) }} home.xn--wersdrfer-47a.de"
+    - "{{ resolved_tailscale_ip | default(macmini_tailscale_ip) }} wersdörfer.de"
+    - "{{ resolved_tailscale_ip | default(macmini_tailscale_ip) }} xn--wersdrfer-47a.de"
   notify: restart pihole-FTL
+  when: tailscale_enabled
 
 - name: Configure firewall for DNS
   ufw:
@@ -134,17 +157,25 @@
       echo "Testing DNS resolution..."
       echo "========================="
       echo ""
-      echo "Local domain resolution:"
+      echo "Domain resolution (should return Tailscale IP):"
+      echo -n "home.wersdörfer.de: "
       dig @127.0.0.1 {{ dns_local_domain }} +short
-      dig @127.0.0.1 test.{{ dns_local_domain }} +short
+      echo -n "paperless.home.wersdörfer.de: "
       dig @127.0.0.1 paperless.{{ dns_local_domain }} +short
+      echo -n "test.home.wersdörfer.de: "
+      dig @127.0.0.1 test.{{ dns_local_domain }} +short
+      echo ""
+      echo "Expected Tailscale IP: {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
       echo ""
       echo "External domain resolution:"
-      dig @127.0.0.1 google.com +short
-      dig @127.0.0.1 cloudflare.com +short
+      dig @127.0.0.1 google.com +short | head -1
+      dig @127.0.0.1 cloudflare.com +short | head -1
       echo ""
       echo "Pi-hole status:"
       pihole status
+      echo ""
+      echo "Current dnsmasq config:"
+      grep -h "address=/" /etc/dnsmasq.d/*.conf | grep -v "^#"
     dest: "{{ site_path }}/bin/test-dns.sh"
     mode: '0755'
     owner: "{{ username }}"
