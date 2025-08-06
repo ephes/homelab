@@ -136,6 +136,26 @@
         group: root
         mode: '0755'
       become: true
+    
+    - name: Install apache2-utils for htpasswd
+      package:
+        name: apache2-utils
+        state: present
+      when: ansible_facts['os_family'] == "Debian"
+      become: true
+    
+    - name: Generate basic auth password hash
+      shell: |
+        echo '{{ traefik_basic_auth_password }}' | htpasswd -nBi {{ traefik_basic_auth_user }} | cut -d: -f2
+      register: password_hash
+      changed_when: false
+      no_log: true
+      become: true
+    
+    - name: Set password hash fact
+      set_fact:
+        traefik_basic_auth_password_hash: "{{ password_hash.stdout }}"
+      no_log: true
         
     - name: Deploy homelab Traefik configuration
       template:
