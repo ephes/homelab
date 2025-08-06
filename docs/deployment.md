@@ -12,14 +12,14 @@ The homelab deployment consists of multiple components that can be deployed toge
 
 ```bash
 # Deploy everything
-cd deploy
-ansible-playbook deploy-all.yml --ask-vault-pass
+just deploy-all
 
 # Deploy individual components
-ansible-playbook deploy-app.yml --ask-vault-pass     # Django app only
-ansible-playbook deploy-traefik.yml --ask-vault-pass  # Traefik proxy
-ansible-playbook deploy-pihole.yml --ask-vault-pass   # Pi-hole DNS
-ansible-playbook deploy-dyndns.yml --ask-vault-pass   # Dynamic DNS
+just deploy        # Django app only (default)
+just deploy-app    # Django app only
+just deploy-traefik  # Traefik proxy
+just deploy-pihole   # Pi-hole DNS
+just deploy-dyndns   # Dynamic DNS
 ```
 
 ## Initial Setup
@@ -36,9 +36,24 @@ all:
       # ansible_host: macmini.tailde2ec.ts.net
 ```
 
-### 2. Set Secrets
+### 2. Configure Vault Password
 
-Create and encrypt `deploy/secrets.yml`:
+Create `deploy/.vault_password` with your Ansible Vault password:
+```bash
+echo "your-vault-password" > deploy/.vault_password
+chmod 600 deploy/.vault_password
+```
+
+This file is automatically used by Ansible (configured in `ansible.cfg`) and should be gitignored.
+
+### 3. Set Secrets
+
+Edit the encrypted `deploy/secrets.yml`:
+```bash
+ansible-vault edit deploy/secrets.yml
+```
+
+Set these values:
 ```yaml
 ---
 # Django secret key
@@ -51,12 +66,7 @@ gandi_api_token: "your-gandi-api-token"
 traefik_basic_auth_password: "your-secure-password"
 ```
 
-Encrypt the file:
-```bash
-ansible-vault encrypt deploy/secrets.yml
-```
-
-### 3. Configure Variables
+### 4. Configure Variables
 
 Review and adjust `deploy/vars.yml`:
 ```yaml
@@ -104,7 +114,7 @@ To change password:
 ```bash
 ansible-vault edit deploy/secrets.yml
 # Update traefik_basic_auth_password
-ansible-playbook deploy-traefik.yml --ask-vault-pass
+just deploy-traefik
 ```
 
 ### Pi-hole DNS Server (Optional)
@@ -159,7 +169,7 @@ just manage migrate
 just deploy
 
 # Quick app update (code only)
-ansible-playbook deploy-app.yml --ask-vault-pass --tags code
+cd deploy && ansible-playbook deploy-app.yml --tags code
 ```
 
 ## Testing

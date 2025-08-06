@@ -50,3 +50,5 @@ cache/
 # Local data
 backups/
 logs/
+# Ansible vault password
+deploy/.vault_password
