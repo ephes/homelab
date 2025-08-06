@@ -43,3 +43,10 @@ MIGRATION_MODULES = DisableMigrations()
 
 # Static files
 STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
+# Disable WhiteNoise for tests to avoid warnings about missing staticfiles directory
+MIDDLEWARE = [  # noqa: F405
+    m
+    for m in MIDDLEWARE  # noqa: F405
+    if "whitenoise" not in m.lower()
+]
