@@ -52,3 +52,4 @@ backups/
 logs/
 # Ansible vault password
 deploy/.vault_password
+docs/_build/
