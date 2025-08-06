@@ -18,3 +18,4 @@ Homelab Documentation
    usage
    development
    troubleshooting
+   traefik-auth
