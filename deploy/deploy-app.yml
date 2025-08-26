@@ -113,6 +113,15 @@
         - "{{ site_path }}/media/services"
         - "{{ site_path }}/media/services/logos"
 
+    - name: Sync media files to production
+      ansible.posix.synchronize:
+        src: "{{ playbook_dir }}/../media/"
+        dest: "{{ site_path }}/media/"
+        rsync_opts:
+          - "--exclude=.gitkeep"
+      become_user: "{{ username }}"
+      when: "lookup('file', playbook_dir + '/../media', errors='ignore') is defined"
+
     - name: Run Django migrations
       shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py migrate"
       args:

@@ -22,6 +22,13 @@ def add_default_services(apps, schema_editor):
             "icon": "fas fa-chart-line",
             "order": 2,
         },
+        {
+            "name": "Unifi",
+            "description": "Self-hosted network controller for managing WiFi access points and switches",
+            "url": "https://unifi.home.xn--wersdrfer-47a.de/",
+            "icon": "fas fa-network-wired",
+            "order": 3,
+        },
     ]
     
     for service_data in services:
@@ -34,7 +41,7 @@ def add_default_services(apps, schema_editor):
 def remove_default_services(apps, schema_editor):
     """Remove default services (for migration reversal)."""
     Service = apps.get_model("core", "Service")
-    Service.objects.filter(name__in=["Home Assistant", "Nyxmon"]).delete()
+    Service.objects.filter(name__in=["Home Assistant", "Nyxmon", "Unifi"]).delete()
 
 
 class Migration(migrations.Migration):

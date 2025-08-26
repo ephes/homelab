@@ -31,6 +31,14 @@ class Command(BaseCommand):
                 "logo_filename": "nyxmon.png",
                 "order": 2,
             },
+            {
+                "name": "Unifi",
+                "description": "Self-hosted network controller for managing WiFi access points and switches",
+                "url": "https://unifi.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-network-wired",
+                "logo_filename": "unifi.png",
+                "order": 3,
+            },
         ]
 
         with transaction.atomic():
