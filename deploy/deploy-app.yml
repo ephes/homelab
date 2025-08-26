@@ -101,6 +101,18 @@
         chdir: "{{ site_path }}"
       become_user: "{{ username }}"
 
+    - name: Create media directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: "0755"
+      loop:
+        - "{{ site_path }}/media"
+        - "{{ site_path }}/media/services"
+        - "{{ site_path }}/media/services/logos"
+
     - name: Run Django migrations
       shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py migrate"
       args:
@@ -110,8 +122,25 @@
         DJANGO_SETTINGS_MODULE: "{{ django_settings_module }}"
       become_user: "{{ username }}"
 
+    - name: Fix database permissions
+      file:
+        path: "{{ site_path }}/db.sqlite3"
+        owner: "{{ username }}"
+        group: "{{ username }}"
+        mode: "0644"
+      when: ansible_os_family == "Debian"
+
     - name: Collect static files
       shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py collectstatic --noinput"
+      args:
+        chdir: "{{ site_path }}"
+        executable: /bin/bash
+      environment:
+        DJANGO_SETTINGS_MODULE: "{{ django_settings_module }}"
+      become_user: "{{ username }}"
+
+    - name: Add default services with logos
+      shell: "set -a && . {{ site_path }}/.env && set +a && {{ python }} manage.py add_default_services"
       args:
         chdir: "{{ site_path }}"
         executable: /bin/bash

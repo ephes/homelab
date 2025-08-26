@@ -12,7 +12,9 @@
     {% for service in services %}
     <div class="service-card">
         <div class="service-icon">
-            {% if service.icon %}
+            {% if service.logo_file %}
+                <img src="{{ service.logo_file.url }}" alt="{{ service.name }} logo" class="service-logo">
+            {% elif service.icon %}
                 <i class="{{ service.icon }}"></i>
             {% else %}
                 <i class="fas fa-server"></i>

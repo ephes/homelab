@@ -10,3 +10,4 @@ class ServiceAdmin(admin.ModelAdmin):
     search_fields = ["name", "description"]
     ordering = ["order", "name"]
     list_editable = ["order", "is_active"]
+    fields = ["name", "description", "url", "icon", "logo_file", "is_active", "order"]

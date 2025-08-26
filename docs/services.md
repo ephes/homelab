@@ -9,7 +9,8 @@ Services in Homelab represent any web-based application or tool you run on your 
 - **Name**: Display name
 - **Description**: Brief explanation
 - **URL**: Direct link to the service
-- **Icon**: Visual identifier
+- **Logo**: Custom logo file (PNG, JPG, SVG)
+- **Icon**: Font Awesome icon (fallback if no logo)
 - **Status**: Active or inactive
 - **Order**: Display position
 
@@ -23,6 +24,7 @@ class Service(models.Model):
     description = models.TextField(blank=True)
     url = models.URLField(blank=True)
     icon = models.CharField(max_length=50, blank=True)
+    logo_file = models.FileField(upload_to="services/logos/", blank=True)
     is_active = models.BooleanField(default=True)
     order = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -36,7 +38,8 @@ class Service(models.Model):
 | name | String | Yes | Unique service identifier |
 | description | Text | No | Detailed service information |
 | url | URL | No | Full URL including protocol |
-| icon | String | No | Font Awesome icon class |
+| logo_file | File | No | Custom logo image (PNG, JPG, SVG) |
+| icon | String | No | Font Awesome icon class (fallback) |
 | is_active | Boolean | Yes | Show/hide on dashboard |
 | order | Integer | Yes | Sort position (default: 0) |
 
@@ -94,6 +97,35 @@ Use order ranges for categories:
 - Include version if relevant: "PostgreSQL 15"
 - Avoid abbreviations unless well-known
 - Be consistent with capitalization
+
+## Logo and Icon Management
+
+### Service Logos
+
+Homelab supports custom logo files for services, providing a more polished appearance:
+
+**Supported Formats**:
+- PNG (recommended for raster images)
+- JPG/JPEG (for photos)
+- SVG (recommended for vector graphics)
+
+**Logo Guidelines**:
+- Recommended size: 80x80 pixels (will be resized automatically)
+- Transparent backgrounds work best
+- Square aspect ratio preferred
+- Keep file sizes under 500KB
+
+**Adding Logos via Admin**:
+1. Navigate to service in admin
+2. Click "Choose File" in Logo file field
+3. Select image from your computer
+4. Save the service
+
+**Default Service Logos**:
+Home Assistant and Nyxmon services come with pre-configured logos that are automatically added when you run:
+```bash
+just manage add_default_services
+```
 
 ## Icon Selection Guide
 
@@ -198,12 +230,13 @@ just manage loaddata services_backup.json
 ```json
 {
   "name": "Home Assistant",
-  "description": "Open source home automation",
-  "url": "https://ha.example.com",
+  "description": "Smart home automation platform for controlling lights, sensors, and devices",
+  "url": "https://homeassistant.home.example.com",
   "icon": "fas fa-home",
-  "order": 200
+  "order": 1
 }
 ```
+*Note: Includes default logo when using add_default_services command*
 
 **Portainer**
 ```json

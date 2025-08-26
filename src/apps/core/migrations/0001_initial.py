@@ -28,7 +28,13 @@ class Migration(migrations.Migration):
                 (
                     "icon",
                     models.CharField(
-                        blank=True, help_text="Font Awesome icon class", max_length=50
+                        blank=True, help_text="Font Awesome icon class (fallback if no logo)", max_length=50
+                    ),
+                ),
+                (
+                    "logo_file",
+                    models.FileField(
+                        blank=True, help_text="Custom logo file (SVG, PNG, etc.)", upload_to="services/logos/"
                     ),
                 ),
                 ("is_active", models.BooleanField(default=True)),

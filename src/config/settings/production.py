@@ -2,6 +2,8 @@
 Production settings for homelab project.
 """
 
+from pathlib import Path
+
 from .base import *  # noqa
 
 # DEBUG
@@ -60,6 +62,9 @@ EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")  # noqa
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")  # noqa
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@home.wersdoerfer.de")  # noqa
 SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)  # noqa
+
+# Media files - override base to use correct path in production
+MEDIA_ROOT = Path("/home/homelab/site/media")
 
 # Logging
 LOGGING = {

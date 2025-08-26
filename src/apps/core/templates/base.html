@@ -29,7 +29,11 @@
                 </a>
                 {% if user.is_authenticated %}
                 <a href="{% url 'admin:index' %}">Admin</a>
-                <a href="{% url 'admin:logout' %}">Logout</a>
+                <form id="logout-form" method="post" action="{% url 'admin:logout' %}" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="/">
+                    <button type="submit" style="background: none; border: none; color: inherit; cursor: pointer; padding: 0; font: inherit;">Logout</button>
+                </form>
                 {% endif %}
             </div>
         </div>
