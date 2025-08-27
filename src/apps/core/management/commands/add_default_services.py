@@ -39,6 +39,14 @@ class Command(BaseCommand):
                 "logo_filename": "unifi.png",
                 "order": 3,
             },
+            {
+                "name": "Paperless-ngx",
+                "description": "Document management system for transforming paper into searchable digital archives",
+                "url": "https://paperless.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-file-alt",
+                "logo_filename": "paperless.png",
+                "order": 4,
+            },
         ]
 
         with transaction.atomic():
