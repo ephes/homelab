@@ -6,26 +6,37 @@ server:
   local-zone: "home.wersdörfer.de." static
   local-zone: "home.xn--wersdrfer-47a.de." static  # IDN encoded version
   
-  # Normal UTF-8 domain entries
+  # Main domain
   local-data: "home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "paperless.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "ha.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  # Django app services - MUST match exactly what's in add_default_services.py
+  # Normal UTF-8 domain entries
+  local-data: "homeassistant.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "nyxmon.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
   local-data: "unifi.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "proxmox.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "portainer.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "pihole.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "router.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "traefik.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "paperless.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
   
   # IDN encoded versions (for domains with ö → xn--wersdrfer-47a.de)
-  local-data: "home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "paperless.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "ha.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "homeassistant.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "nyxmon.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
   local-data: "unifi.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "proxmox.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "portainer.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "pihole.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
-  local-data: "router.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "paperless.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  # Additional infrastructure services (not in Django yet but useful)
+  local-data: "traefik.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
   local-data: "traefik.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
   
-  # Additional services can be added here in the future
+  local-data: "pihole.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "pihole.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  local-data: "portainer.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "portainer.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  local-data: "proxmox.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "proxmox.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  local-data: "router.home.wersdörfer.de. 86400 IN A {{ macmini_internal_ip }}"
+  local-data: "router.home.xn--wersdrfer-47a.de. 86400 IN A {{ macmini_internal_ip }}"
+  
+  # Note: When adding new services to Django app, also add them here!
