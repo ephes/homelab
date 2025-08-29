@@ -31,8 +31,15 @@ pihole_config_dir: "/etc/pihole"
 pihole_dnsmasq_dir: "/etc/dnsmasq.d"
 pihole_log_dir: "/var/log/pihole"
 # Get the internal IP dynamically, or set it explicitly
-macmini_internal_ip: "{{ ansible_default_ipv4.address | default('192.168.178.50') }}"
+macmini_internal_ip: "{{ ansible_default_ipv4.address | default('192.168.178.94') }}"
 dns_local_domain: "home.{{ ddns_domain }}"
+
+# Unbound configuration
+unbound_enabled: true
+unbound_port: 5335
+unbound_config_dir: "/etc/unbound"
+# Use Unbound as upstream DNS for Pi-hole
+pihole_upstream_dns: "127.0.0.1#{{ unbound_port }}"
 # Service port allocations for future services
 service_ports:
   homelab: 10010

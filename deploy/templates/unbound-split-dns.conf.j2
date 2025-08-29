@@ -1,0 +1,76 @@
+# Split DNS configuration for Unbound
+# This provides different DNS responses based on client source IP
+
+# Access control view mappings (must be in server section)
+server:
+  # Map client source IPs to views
+  access-control-view: 192.168.178.0/24 "lan"
+  access-control-view: 100.64.0.0/10 "tailscale"
+  access-control-view: 127.0.0.0/8 "localhost"
+
+# LAN view - for internal network clients (192.168.178.0/24)
+view:
+  name: "lan"
+  view-first: yes
+  
+  # Configure zone as transparent to allow wildcards
+  local-zone: "home.wersdörfer.de." transparent
+  
+  # Main domain - points to LAN IP
+  local-data: "home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  
+  # Service subdomains - all point to macmini LAN IP
+  local-data: "paperless.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "ha.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "unifi.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "proxmox.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "portainer.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "pihole.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "router.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "traefik.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  
+  # Catch-all for any other subdomains using local-data-ptr
+  local-data: "*.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+
+# Tailscale view - for Tailscale network clients (100.64.0.0/10)
+view:
+  name: "tailscale"
+  view-first: yes
+  
+  # Configure zone as transparent to allow wildcards
+  local-zone: "home.wersdörfer.de." transparent
+  
+  # Main domain - points to Tailscale IP
+  local-data: "home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  
+  # Service subdomains - all point to macmini Tailscale IP
+  local-data: "paperless.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "ha.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "unifi.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "proxmox.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "portainer.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "pihole.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "router.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  local-data: "traefik.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+  
+  # Catch-all for any other subdomains
+  local-data: "*.home.wersdörfer.de. IN A {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+
+# Default view for localhost queries
+view:
+  name: "localhost"
+  view-first: yes
+  
+  # For localhost, we'll use the LAN IP for consistency
+  local-zone: "home.wersdörfer.de." transparent
+  
+  local-data: "home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "paperless.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "ha.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "unifi.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "proxmox.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "portainer.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "pihole.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "router.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "traefik.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"
+  local-data: "*.home.wersdörfer.de. IN A {{ macmini_internal_ip }}"

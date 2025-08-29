@@ -1,0 +1,124 @@
+---
+# Update Pi-hole to use Unbound as upstream DNS
+
+- name: Check if Unbound is running
+  systemd:
+    name: unbound
+  register: unbound_status
+  failed_when: false
+
+- name: Fail if Unbound is not running
+  fail:
+    msg: "Unbound is not running. Please deploy Unbound first with: ansible-playbook deploy-unbound.yml"
+  when: unbound_status.status.ActiveState is not defined or unbound_status.status.ActiveState != "active"
+
+- name: Test Unbound connectivity
+  shell: dig @127.0.0.1 -p {{ unbound_port }} google.com +short
+  register: unbound_test
+  changed_when: false
+  failed_when: unbound_test.rc != 0
+
+- name: Update Pi-hole configuration to use Unbound
+  lineinfile:
+    path: /etc/pihole/pihole.toml
+    regexp: '^\s*PIHOLE_DNS_\d+\s*='
+    state: absent
+  notify: restart pihole-FTL
+
+- name: Configure Pi-hole to use Unbound as upstream DNS
+  blockinfile:
+    path: /etc/pihole/pihole.toml
+    marker: "# {mark} ANSIBLE MANAGED - Unbound upstream DNS"
+    block: |
+      [dns]
+        upstream = [ "{{ pihole_upstream_dns }}" ]
+        cache_size = 10000
+        domain_needed = false
+        bogus_priv = false
+        dnssec = false
+        conditional_forwarding = false
+  notify: restart pihole-FTL
+
+- name: Remove old dnsmasq local resolution configs
+  file:
+    path: "{{ pihole_dnsmasq_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - 02-local-wildcard.conf
+    - 03-tailscale.conf
+  notify: restart pihole-FTL
+
+- name: Clear Pi-hole custom.list entries (now handled by Unbound)
+  copy:
+    content: |
+      # Custom DNS entries handled by Unbound split-DNS
+      # See /etc/unbound/unbound.conf.d/10-split-dns.conf
+    dest: /etc/pihole/custom.list
+    mode: '0644'
+  notify: restart pihole-FTL
+
+- name: Create test script for split-DNS
+  copy:
+    content: |
+      #!/bin/bash
+      echo "==================================="
+      echo "Split-DNS Test Script"
+      echo "==================================="
+      echo ""
+      
+      # Get current network interface IPs
+      LAN_IP=$(ip -4 addr show | grep "192.168.178" | awk '{print $2}' | cut -d/ -f1 | head -1)
+      TS_IP=$(ip -4 addr show | grep "100\." | awk '{print $2}' | cut -d/ -f1 | head -1)
+      
+      echo "Current server IPs:"
+      echo "  LAN IP: ${LAN_IP:-Not found}"
+      echo "  Tailscale IP: ${TS_IP:-Not found}"
+      echo ""
+      
+      echo "Testing DNS resolution via Pi-hole (port 53):"
+      echo "-------------------------------------------"
+      echo -n "  home.wersdörfer.de: "
+      dig @127.0.0.1 -p 53 home.wersdörfer.de +short
+      echo -n "  paperless.home.wersdörfer.de: "
+      dig @127.0.0.1 -p 53 paperless.home.wersdörfer.de +short
+      echo ""
+      
+      echo "Testing direct Unbound resolution (port {{ unbound_port }}):"
+      echo "-------------------------------------------"
+      echo "  LAN view (simulating LAN client):"
+      echo -n "    home.wersdörfer.de: "
+      dig @127.0.0.1 -p {{ unbound_port }} +subnet=192.168.178.1/32 home.wersdörfer.de +short
+      echo ""
+      echo "  Tailscale view (simulating Tailscale client):"
+      echo -n "    home.wersdörfer.de: "
+      dig @127.0.0.1 -p {{ unbound_port }} +subnet=100.100.0.1/32 home.wersdörfer.de +short
+      echo ""
+      
+      echo "Testing external domain resolution:"
+      echo "-----------------------------------"
+      echo -n "  google.com: "
+      dig @127.0.0.1 -p 53 google.com +short | head -1
+      echo ""
+      
+      echo "Service Status:"
+      echo "---------------"
+      systemctl is-active pihole-FTL | xargs echo "  Pi-hole:"
+      systemctl is-active unbound | xargs echo "  Unbound:"
+      echo ""
+      
+      echo "Expected results:"
+      echo "-----------------"
+      echo "  From LAN clients: home.wersdörfer.de → {{ macmini_internal_ip }}"
+      echo "  From Tailscale clients: home.wersdörfer.de → {{ resolved_tailscale_ip | default(macmini_tailscale_ip) }}"
+    dest: "{{ site_path }}/bin/test-split-dns.sh"
+    mode: '0755'
+    owner: "{{ username }}"
+
+- name: Run split-DNS test
+  shell: "{{ site_path }}/bin/test-split-dns.sh"
+  register: dns_test_result
+  changed_when: false
+
+- name: Display test results
+  debug:
+    var: dns_test_result.stdout_lines

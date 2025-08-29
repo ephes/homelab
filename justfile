@@ -110,6 +110,14 @@ deploy-pihole:
 deploy-traefik:
     cd deploy && ansible-playbook deploy-traefik.yml
 
+# Deploy Unbound with split-DNS configuration
+deploy-unbound:
+    cd deploy && ansible-playbook deploy-unbound.yml
+
+# Deploy complete split-DNS setup (Unbound + Pi-hole)
+deploy-split-dns:
+    cd deploy && ansible-playbook deploy-split-dns.yml
+
 # Backup database (SQLite)
 backup:
     @echo "Database backup not yet implemented for SQLite"
@@ -144,6 +152,8 @@ help:
     @echo "  just deploy-dyndns # Deploy DynDNS"
     @echo "  just deploy-pihole # Deploy Pi-hole DNS"
     @echo "  just deploy-traefik # Deploy Traefik"
+    @echo "  just deploy-unbound # Deploy Unbound DNS"
+    @echo "  just deploy-split-dns # Deploy complete split-DNS"
     @echo "  just backup       # Backup production database"
     @echo ""
     @echo "DNS Testing:"
@@ -163,7 +173,12 @@ dns-test:
 
 # Check DNS server status on macmini
 dns-status:
-    ssh root@macmini.fritz.box "pihole status" || echo "Pi-hole not installed or SSH not configured"
+    ssh root@macmini.tailde2ec.ts.net "pihole status && echo '' && systemctl status unbound --no-pager | head -10" || echo "DNS services not installed or SSH not configured"
+
+# Test split-DNS resolution
+dns-split-test:
+    @echo "Testing split-DNS configuration on macmini..."
+    ssh root@macmini.tailde2ec.ts.net "/home/homelab/site/bin/test-split-dns.sh" || echo "Test script not found. Deploy split-DNS first."
 
 # Test Traefik setup
 traefik-test:

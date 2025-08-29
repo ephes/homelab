@@ -1,0 +1,15 @@
+---
+# Quick fix for Pi-hole to use Unbound
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Fix Pi-hole upstream DNS configuration"
+      include_tasks: tasks/pihole-fix-upstream.yml
+      
+  handlers:
+    - name: restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted

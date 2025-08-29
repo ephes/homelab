@@ -1,0 +1,117 @@
+---
+# Complete split-DNS deployment: Unbound + Pi-hole configuration
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Include shared secret vars"
+      include_vars: secrets.yml
+      failed_when: false
+      
+    - name: "Include host-specific vars"
+      include_vars: "host_vars/macmini.yml"
+      failed_when: false
+
+    # Resolve dynamic values
+    - name: Get macmini internal IP
+      set_fact:
+        macmini_internal_ip: "{{ ansible_default_ipv4.address }}"
+      when: macmini_internal_ip is not defined
+
+    - name: Display current network configuration
+      debug:
+        msg:
+          - "Hostname: {{ ansible_hostname }}"
+          - "Internal IP: {{ macmini_internal_ip }}"
+          - "Tailscale hostname: {{ tailscale_hostname }}"
+          - "Tailscale IP (configured): {{ macmini_tailscale_ip }}"
+
+    - name: Resolve Tailscale IP from hostname
+      when: tailscale_enabled
+      block:
+        - name: Get Tailscale IP locally
+          shell: "tailscale status | grep {{ ansible_hostname }} | awk '{print $1}'"
+          register: local_tailscale_ip
+          changed_when: false
+          failed_when: false
+
+        - name: Set resolved Tailscale IP
+          set_fact:
+            resolved_tailscale_ip: "{{ local_tailscale_ip.stdout if local_tailscale_ip.stdout else macmini_tailscale_ip }}"
+
+        - name: Display resolved Tailscale IP
+          debug:
+            msg: "Resolved Tailscale IP: {{ resolved_tailscale_ip }}"
+
+    # Step 1: Deploy Unbound with split-DNS
+    - name: Deploy Unbound DNS server
+      include_tasks: tasks/unbound.yml
+      tags: ['unbound']
+
+    # Step 2: Update Pi-hole to use Unbound
+    - name: Update Pi-hole configuration
+      include_tasks: tasks/pihole-update-dns.yml
+      tags: ['pihole']
+
+    # Step 3: Deploy verification script
+    - name: Create verification script
+      template:
+        src: verify-split-dns.sh.j2
+        dest: "{{ site_path }}/bin/verify-split-dns.sh"
+        mode: '0755'
+        owner: "{{ username }}"
+      tags: ['verify']
+
+    # Step 4: Final verification
+    - name: Final DNS resolution test
+      shell: |
+        echo "=== Final Split-DNS Verification ==="
+        echo "Testing from this server ({{ ansible_hostname }}):"
+        echo ""
+        echo "1. Via Pi-hole (port 53):"
+        dig @127.0.0.1 home.wersdörfer.de +short
+        echo ""
+        echo "2. Direct to Unbound - LAN view:"
+        dig @127.0.0.1 -p {{ unbound_port }} +subnet=192.168.178.1/32 home.wersdörfer.de +short
+        echo ""
+        echo "3. Direct to Unbound - Tailscale view:"
+        dig @127.0.0.1 -p {{ unbound_port }} +subnet=100.64.0.1/32 home.wersdörfer.de +short
+        echo ""
+        echo "4. External domain test:"
+        dig @127.0.0.1 cloudflare.com +short | head -1
+      register: final_test
+      changed_when: false
+      tags: ['test']
+
+    - name: Display final test results
+      debug:
+        var: final_test.stdout_lines
+      tags: ['test']
+
+    - name: Instructions for Fritz!Box configuration
+      debug:
+        msg:
+          - "IMPORTANT: Manual Fritz!Box configuration required:"
+          - "1. Go to: Home Network → Network → Network Settings"
+          - "2. Set DNS server to: {{ macmini_internal_ip }}"
+          - "3. Under DNS Rebind Protection, add exception for: wersdörfer.de"
+          - "4. Save and apply settings"
+          - ""
+          - "For Tailscale clients:"
+          - "1. Tailscale admin console → DNS settings"
+          - "2. Enable MagicDNS"
+          - "3. Add nameserver: {{ resolved_tailscale_ip }}"
+          - "4. Add Split DNS for wersdörfer.de → {{ resolved_tailscale_ip }}"
+      tags: ['always']
+
+  handlers:
+    - name: restart unbound
+      systemd:
+        name: unbound
+        state: restarted
+        
+    - name: restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted

@@ -1,0 +1,156 @@
+---
+# Unbound DNS server with split-DNS configuration
+
+- name: Install Unbound
+  apt:
+    name:
+      - unbound
+      - unbound-anchor
+      - dnsutils
+    state: present
+    update_cache: yes
+
+- name: Stop Unbound temporarily for configuration
+  systemd:
+    name: unbound
+    state: stopped
+
+- name: Create Unbound configuration directory
+  file:
+    path: /etc/unbound/unbound.conf.d
+    state: directory
+    mode: '0755'
+
+- name: Configure Unbound main settings
+  copy:
+    content: |
+      # Include all configuration files
+      include: "/etc/unbound/unbound.conf.d/*.conf"
+    dest: /etc/unbound/unbound.conf
+    mode: '0644'
+    backup: yes
+
+- name: Create Unbound base configuration
+  copy:
+    content: |
+      server:
+        # Network interface configuration
+        interface: 0.0.0.0
+        port: 5335
+        do-ip4: yes
+        do-ip6: no
+        do-udp: yes
+        do-tcp: yes
+        
+        # Access control
+        access-control: 127.0.0.0/8 allow
+        access-control: 192.168.178.0/24 allow
+        access-control: 100.64.0.0/10 allow
+        
+        # Performance and security
+        num-threads: 2
+        msg-cache-slabs: 4
+        rrset-cache-slabs: 4
+        infra-cache-slabs: 4
+        key-cache-slabs: 4
+        cache-max-ttl: 86400
+        cache-min-ttl: 0
+        edns-buffer-size: 1232
+        rrset-roundrobin: yes
+        
+        # Privacy
+        hide-identity: yes
+        hide-version: yes
+        minimal-responses: yes
+        qname-minimisation: yes
+        
+        # Logging
+        verbosity: 1
+        log-queries: no
+        log-replies: no
+        log-servfail: yes
+        
+        # Root hints
+        root-hints: /usr/share/dns/root.hints
+    dest: /etc/unbound/unbound.conf.d/00-base.conf
+    mode: '0644'
+
+- name: Configure local DNS zones
+  template:
+    src: unbound-local-zones.conf.j2
+    dest: /etc/unbound/unbound.conf.d/09-local-zones.conf
+    mode: '0644'
+
+- name: Configure forwarding for non-local domains
+  copy:
+    content: |
+      # Forward queries for all other domains to upstream DNS
+      forward-zone:
+        name: "."
+        # Using standard DNS (port 53) for compatibility
+        # To enable DNS-over-TLS, uncomment the following line and comment out standard DNS
+        # forward-tls-upstream: yes
+        # forward-addr: 1.1.1.1@853#cloudflare-dns.com
+        # forward-addr: 1.0.0.1@853#cloudflare-dns.com
+        
+        # Standard DNS servers
+        forward-addr: 1.1.1.1
+        forward-addr: 1.0.0.1
+        forward-addr: 8.8.8.8
+        forward-addr: 8.8.4.4
+    dest: /etc/unbound/unbound.conf.d/20-forward.conf
+    mode: '0644'
+
+- name: Download root hints file
+  get_url:
+    url: https://www.internic.net/domain/named.cache
+    dest: /usr/share/dns/root.hints
+    mode: '0644'
+    force: yes
+  ignore_errors: yes  # Can fail if DNS is not yet working
+
+- name: Run unbound-anchor to update DNSSEC root key
+  command: unbound-anchor -a /var/lib/unbound/root.key
+  ignore_errors: yes
+
+- name: Check Unbound configuration
+  command: unbound-checkconf
+  register: unbound_check
+  failed_when: unbound_check.rc != 0
+
+- name: Start and enable Unbound
+  systemd:
+    name: unbound
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
+- name: Configure firewall for Unbound (internal only)
+  ufw:
+    rule: allow
+    port: 5335
+    proto: "{{ item.proto }}"
+    src: "{{ item.src }}"
+  loop:
+    - { proto: tcp, src: 127.0.0.1 }
+    - { proto: udp, src: 127.0.0.1 }
+    - { proto: tcp, src: 192.168.178.0/24 }
+    - { proto: udp, src: 192.168.178.0/24 }
+    - { proto: tcp, src: 100.64.0.0/10 }
+    - { proto: udp, src: 100.64.0.0/10 }
+
+- name: Test Unbound resolution
+  shell: |
+    echo "Testing Unbound DNS resolution..."
+    echo "LAN view test (should return LAN IP):"
+    dig @127.0.0.1 -p 5335 +subnet=192.168.178.1/32 home.wersdörfer.de +short
+    echo "Tailscale view test (should return Tailscale IP):"
+    dig @127.0.0.1 -p 5335 +subnet=100.100.0.1/32 home.wersdörfer.de +short
+    echo "External domain test:"
+    dig @127.0.0.1 -p 5335 google.com +short | head -1
+  register: unbound_test
+  changed_when: false
+
+- name: Display Unbound test results
+  debug:
+    var: unbound_test.stdout_lines

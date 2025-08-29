@@ -19,3 +19,11 @@ Homelab Documentation
    development
    troubleshooting
    traefik-auth
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Infrastructure
+
+   split-dns-final-implementation
+   split-dns-implementation
+   split-dns-setup-complete

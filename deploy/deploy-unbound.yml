@@ -1,0 +1,56 @@
+---
+# Deploy Unbound with split-DNS configuration
+- hosts: macmini
+  tasks:
+    - name: "Include public vars"
+      include_vars: vars.yml
+
+    - name: "Include shared secret vars"
+      include_vars: secrets.yml
+      
+    - name: "Include host-specific vars (loaded last to override)"
+      include_vars: "host_vars/macmini.yml"
+      when: ansible_inventory_sources[0] is search('macmini')
+      failed_when: false
+
+    # Resolve dynamic values
+    - name: Resolve Tailscale IP from hostname
+      when: tailscale_enabled
+      block:
+        - name: Get Tailscale IP from hostname
+          shell: "dig +short {{ tailscale_hostname }} | head -1"
+          register: tailscale_ip_result
+          changed_when: false
+          failed_when: false
+          delegate_to: localhost
+
+        - name: Set Tailscale IP fact
+          set_fact:
+            resolved_tailscale_ip: "{{ tailscale_ip_result.stdout if tailscale_ip_result.stdout else macmini_tailscale_ip }}"
+
+        - name: Display resolved IPs
+          debug:
+            msg:
+              - "LAN IP: {{ macmini_internal_ip | default(ansible_default_ipv4.address) }}"
+              - "Tailscale IP: {{ resolved_tailscale_ip }}"
+
+    # Get actual internal IP if not explicitly set
+    - name: Get internal IP address
+      set_fact:
+        macmini_internal_ip: "{{ ansible_default_ipv4.address }}"
+      when: macmini_internal_ip is not defined
+
+    # Unbound DNS Server Setup
+    - name: Include Unbound tasks
+      include_tasks: tasks/unbound.yml
+      
+  handlers:
+    - name: restart unbound
+      systemd:
+        name: unbound
+        state: restarted
+        
+    - name: restart pihole-FTL
+      systemd:
+        name: pihole-FTL
+        state: restarted

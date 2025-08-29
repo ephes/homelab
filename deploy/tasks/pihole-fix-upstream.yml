@@ -1,0 +1,27 @@
+---
+# Fix Pi-hole to use Unbound as upstream DNS
+
+- name: Update Pi-hole configuration to use Unbound
+  replace:
+    path: /etc/pihole/pihole.toml
+    regexp: '  upstreams = \[[^\]]*\]'
+    replace: '  upstreams = [ "{{ pihole_upstream_dns }}" ]'
+  notify: restart pihole-FTL
+
+- name: Also remove any PIHOLE_DNS entries if they exist
+  lineinfile:
+    path: /etc/pihole/pihole.toml
+    regexp: '^\s*(PIHOLE_DNS_\d+|PIHOLE_DNS)\s*='
+    state: absent
+  notify: restart pihole-FTL
+
+- name: Disable conditional forwarding
+  replace:
+    path: /etc/pihole/pihole.toml
+    regexp: '  conditionalForwarding_enabled = true'
+    replace: '  conditionalForwarding_enabled = false'
+  notify: restart pihole-FTL
+
+- name: Clear cache to ensure new settings take effect
+  command: pihole restartdns reload
+  changed_when: true
