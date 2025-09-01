@@ -87,6 +87,53 @@ just collectstatic
 | Permission denied | `sudo chown -R homelab:homelab /home/homelab/site` |
 | High memory | Reduce Granian workers in systemd |
 
+## DNS Issues
+
+### Fritz!Box and Umlaut Domains (IDN) in DNS-Rebind Protection
+
+#### The Problem
+When using a Fritz!Box as DNS proxy in the home network, it enforces **DNS-Rebind protection**.  
+This means DNS responses that resolve to **private IP addresses** (e.g. 192.168.x.x) are suppressed unless explicitly allowed.
+
+If you use domains with **umlauts (IDN / Internationalized Domain Names)** such as:
+```
+paperless.home.wersdörfer.de
+```
+
+the Fritz!Box **cannot match these domains directly** in the DNS-Rebind exception list.  
+That is because DNS queries are transmitted internally in **punycode** form, not in UTF-8.
+
+#### Example
+Querying with punycode works:
+```bash
+$ host paperless.home.xn--wersdrfer-47a.de 192.168.178.1
+paperless.home.xn--wersdrfer-47a.de has address 192.168.178.94
+```
+
+Querying with umlauts fails:
+```bash
+$ host paperless.home.wersdörfer.de 192.168.178.1
+;; no response
+```
+
+#### Solution
+Always configure **punycode versions** of your domains in the Fritz!Box
+under **Heimnetz → Netzwerk → Netzwerkeinstellungen → DNS-Rebind-Schutz**.
+
+For example, instead of:
+- `home.wersdörfer.de`
+- `*.home.wersdörfer.de`
+
+use:
+- `home.xn--wersdrfer-47a.de`
+- `*.home.xn--wersdrfer-47a.de`
+
+#### Notes
+- Applications and browsers can still use the **umlaut domain** – they automatically convert it to punycode before doing DNS lookups
+- Traefik and Let's Encrypt certificates work fine with the umlaut form
+- The Fritz!Box requires punycode exceptions to allow DNS answers pointing to internal IPs
+- To convert domains to punycode: `echo "wersdörfer.de" | idn2`
+
 ## Getting Help
 
 1. Check logs: `just logs`

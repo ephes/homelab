@@ -55,8 +55,15 @@ To make all LAN devices use the new DNS:
 
 1. Go to: **Home Network → Network → Network Settings**
 2. Set DNS server to: `192.168.178.94`
-3. Under **DNS Rebind Protection**, add exception for: `wersdörfer.de`
+3. Under **DNS Rebind Protection**, add exceptions for:
+   - `home.xn--wersdrfer-47a.de` (punycode version of home.wersdörfer.de)
+   - `*.home.xn--wersdrfer-47a.de` (wildcard for all subdomains)
+   
+   **Important**: You must use the punycode version because the Fritz!Box cannot match umlaut domains directly in DNS-Rebind exceptions. DNS queries are transmitted in punycode form internally.
+   
 4. Save and apply settings
+
+**Note**: To convert domains to punycode: `echo "wersdörfer.de" | idn2`
 
 ### 2. Tailscale Configuration
 To enable split-DNS for Tailscale clients:
