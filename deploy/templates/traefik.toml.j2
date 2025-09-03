@@ -33,6 +33,10 @@
   
   [entryPoints.web-secure]
     address = ":443"
+  
+  # Dashboard/API entrypoint (moved from default 8080 to avoid UniFi conflict)
+  [entryPoints.traefik]
+    address = ":8090"
 
 [certificatesResolvers.letsencrypt.acme]
   email = "{{ letsencrypt_email | default('jochen-traefik@wersdoerfer.de') }}"
