@@ -47,6 +47,14 @@ class Command(BaseCommand):
                 "logo_filename": "paperless.png",
                 "order": 4,
             },
+            {
+                "name": "FastDeploy",
+                "description": "Deployment automation platform for managing web applications via API and web interface",
+                "url": "https://deploy.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-rocket",
+                "logo_filename": "fastdeploy.png",
+                "order": 5,
+            },
         ]
 
         with transaction.atomic():
