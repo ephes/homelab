@@ -117,6 +117,27 @@
   shell: pihole -g
   changed_when: false
 
+- name: Apply Pi-hole whitelist
+  block:
+    - name: Create whitelist SQL file
+      template:
+        src: pihole-whitelist.sql.j2
+        dest: /tmp/pihole-whitelist.sql
+        mode: '0644'
+    
+    - name: Apply whitelist to Pi-hole database
+      shell: pihole-FTL sqlite3 /etc/pihole/gravity.db < /tmp/pihole-whitelist.sql
+      changed_when: false
+    
+    - name: Remove temporary whitelist file
+      file:
+        path: /tmp/pihole-whitelist.sql
+        state: absent
+    
+    - name: Reload Pi-hole lists
+      shell: pihole reloadlists
+      changed_when: false
+
 - name: Add local DNS entries to custom.list
   lineinfile:
     path: /etc/pihole/custom.list

@@ -1,0 +1,26 @@
+-- Pi-hole whitelist entries for essential services
+-- Type 0 = exact whitelist
+
+-- Philips Hue domains (required for Google Home integration)
+INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES
+(0, 'meethue.com', 1, 'Philips Hue Cloud - Main domain'),
+(0, 'data.meethue.com', 1, 'Philips Hue Data sync'),
+(0, 'api.meethue.com', 1, 'Philips Hue API'),
+(0, 'discovery.meethue.com', 1, 'Philips Hue Bridge discovery'),
+(0, 'diagnostics.meethue.com', 1, 'Philips Hue Diagnostics'),
+(0, 'diag.meethue.com', 1, 'Philips Hue Diagnostics (short)'),
+(0, 'ws.meethue.com', 1, 'Philips Hue WebSocket'),
+(0, 'mqtt-eu-02.iot.meethue.com', 1, 'Philips Hue MQTT for IoT'),
+(0, 'login.meethue.com', 1, 'Philips Hue Login'),
+(0, 'api.account.meethue.com', 1, 'Philips Hue Account API'),
+(0, 'www.philips-hue.com', 1, 'Philips Hue Website'),
+(0, 'api.iconnecthue.com', 1, 'iConnectHue App API'),
+(0, 'iconnecthue.com', 1, 'iConnectHue App');
+
+{% if pihole_whitelist_custom is defined %}
+-- Custom whitelist entries from deployment configuration
+{% for domain in pihole_whitelist_custom %}
+INSERT OR IGNORE INTO domainlist (type, domain, enabled, comment) VALUES
+(0, '{{ domain.name }}', 1, '{{ domain.comment | default("Custom whitelist") }}');
+{% endfor %}
+{% endif %}

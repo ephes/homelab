@@ -86,15 +86,24 @@ docs-serve:
 docs-open: docs
     open docs/_build/html/index.html
 
-# Deploy to macmini - app only (default)
+# Deploy to macmini via ops-control (NEW: uses ops-library role)
 deploy:
+    cd ../ops-control && just deploy-one homelab
+
+# Remove homelab service from macmini (via ops-control)
+remove:
+    cd ../ops-control && just remove-one homelab
+
+# Legacy deployment commands (DEPRECATED: use 'just deploy' instead)
+# These deploy using the old deploy/ directory structure
+deploy-legacy:
     cd deploy && ansible-playbook deploy.yml
 
-# Deploy all components
+# Deploy all components (LEGACY)
 deploy-all:
     cd deploy && ansible-playbook deploy-all.yml
 
-# Deploy only the Django app
+# Deploy only the Django app (LEGACY)
 deploy-app:
     cd deploy && ansible-playbook deploy-app.yml
 
@@ -146,14 +155,18 @@ help:
     @echo "  just docs-open    # Build and open docs in browser"
     @echo ""
     @echo "Deployment:"
-    @echo "  just deploy       # Deploy app only (default)"
-    @echo "  just deploy-all   # Deploy all components"
-    @echo "  just deploy-app   # Deploy Django app"
+    @echo "  just deploy       # Deploy app via ops-control (NEW)"
+    @echo "  just remove       # Remove app from macmini"
+    @echo ""
+    @echo "Infrastructure (via deploy/):"
     @echo "  just deploy-dyndns # Deploy DynDNS"
     @echo "  just deploy-pihole # Deploy Pi-hole DNS"
     @echo "  just deploy-traefik # Deploy Traefik"
     @echo "  just deploy-unbound # Deploy Unbound DNS"
     @echo "  just deploy-split-dns # Deploy complete split-DNS"
+    @echo ""
+    @echo "Legacy deployment:"
+    @echo "  just deploy-legacy # Old deployment method (deprecated)"
     @echo "  just backup       # Backup production database"
     @echo ""
     @echo "DNS Testing:"
