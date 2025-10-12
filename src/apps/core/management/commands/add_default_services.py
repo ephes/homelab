@@ -55,6 +55,14 @@ class Command(BaseCommand):
                 "logo_filename": "fastdeploy.png",
                 "order": 5,
             },
+            {
+                "name": "MinIO",
+                "description": "S3-compatible object storage for backups and data archiving",
+                "url": "https://minio.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-database",
+                "logo_filename": "minio.png",
+                "order": 6,
+            },
         ]
 
         with transaction.atomic():
