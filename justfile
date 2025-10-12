@@ -86,54 +86,13 @@ docs-serve:
 docs-open: docs
     open docs/_build/html/index.html
 
-# Deploy to macmini via ops-control (NEW: uses ops-library role)
+# Deploy to macmini via ops-control
 deploy:
     cd ../ops-control && just deploy-one homelab
 
-# Remove homelab service from macmini (via ops-control)
+# Remove homelab service from macmini
 remove:
     cd ../ops-control && just remove-one homelab
-
-# Legacy deployment commands (DEPRECATED: use 'just deploy' instead)
-# These deploy using the old deploy/ directory structure
-deploy-legacy:
-    cd deploy && ansible-playbook deploy.yml
-
-# Deploy all components (LEGACY)
-deploy-all:
-    cd deploy && ansible-playbook deploy-all.yml
-
-# Deploy only the Django app (LEGACY)
-deploy-app:
-    cd deploy && ansible-playbook deploy-app.yml
-
-# Deploy only DynDNS
-deploy-dyndns:
-    cd deploy && ansible-playbook deploy-dyndns.yml
-
-# Deploy only Pi-hole DNS server
-deploy-pihole:
-    cd deploy && ansible-playbook deploy-pihole.yml
-
-# Deploy only Traefik reverse proxy
-deploy-traefik:
-    cd deploy && ansible-playbook deploy-traefik.yml
-
-# Deploy Unbound with split-DNS configuration
-deploy-unbound:
-    cd deploy && ansible-playbook deploy-unbound.yml
-
-# Deploy complete split-DNS setup (Unbound + Pi-hole)
-deploy-split-dns:
-    cd deploy && ansible-playbook deploy-split-dns.yml
-
-# Backup database (SQLite)
-backup:
-    @echo "Database backup not yet implemented for SQLite"
-
-# Restore database from backup
-restore:
-    cd deploy && ansible-playbook restore_database.yml --limit production
 
 # Help for common tasks
 help:
@@ -155,19 +114,8 @@ help:
     @echo "  just docs-open    # Build and open docs in browser"
     @echo ""
     @echo "Deployment:"
-    @echo "  just deploy       # Deploy app via ops-control (NEW)"
+    @echo "  just deploy       # Deploy app via ops-control"
     @echo "  just remove       # Remove app from macmini"
-    @echo ""
-    @echo "Infrastructure (via deploy/):"
-    @echo "  just deploy-dyndns # Deploy DynDNS"
-    @echo "  just deploy-pihole # Deploy Pi-hole DNS"
-    @echo "  just deploy-traefik # Deploy Traefik"
-    @echo "  just deploy-unbound # Deploy Unbound DNS"
-    @echo "  just deploy-split-dns # Deploy complete split-DNS"
-    @echo ""
-    @echo "Legacy deployment:"
-    @echo "  just deploy-legacy # Old deployment method (deprecated)"
-    @echo "  just backup       # Backup production database"
     @echo ""
     @echo "DNS Testing:"
     @echo "  just dns-test     # Test DNS resolution"
