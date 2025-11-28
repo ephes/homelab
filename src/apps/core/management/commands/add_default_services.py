@@ -63,6 +63,14 @@ class Command(BaseCommand):
                 "logo_filename": "minio.png",
                 "order": 6,
             },
+            {
+                "name": "Minecraft",
+                "description": "Java Edition server - Connect at macmini.fritz.box:25565",
+                "url": "",
+                "icon": "fas fa-cube",
+                "logo_filename": "minecraft.png",
+                "order": 7,
+            },
         ]
 
         with transaction.atomic():
