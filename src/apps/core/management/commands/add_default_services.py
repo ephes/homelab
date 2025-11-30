@@ -64,12 +64,20 @@ class Command(BaseCommand):
                 "order": 6,
             },
             {
+                "name": "Navidrome",
+                "description": "Self-hosted music streaming server (Subsonic-compatible)",
+                "url": "https://music.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-music",
+                "logo_filename": "navidrome.png",
+                "order": 7,
+            },
+            {
                 "name": "Minecraft",
                 "description": "Java Edition server - Connect at macmini.fritz.box:25565",
                 "url": "",
                 "icon": "fas fa-cube",
                 "logo_filename": "minecraft.png",
-                "order": 7,
+                "order": 8,
             },
         ]
 
