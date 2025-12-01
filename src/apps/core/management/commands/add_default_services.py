@@ -72,12 +72,20 @@ class Command(BaseCommand):
                 "order": 7,
             },
             {
+                "name": "Jellyfin",
+                "description": "Self-hosted video server for movies, TV, and downloads",
+                "url": "https://media.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-film",
+                "logo_filename": "jellyfin.svg",
+                "order": 8,
+            },
+            {
                 "name": "Minecraft",
                 "description": "Java Edition server - Connect at macmini.fritz.box:25565",
                 "url": "",
                 "icon": "fas fa-cube",
                 "logo_filename": "minecraft.png",
-                "order": 8,
+                "order": 9,
             },
         ]
 

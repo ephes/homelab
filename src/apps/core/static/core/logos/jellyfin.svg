@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Jellyfin logo">
+  <defs>
+    <linearGradient id="jellyfinGradient" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0b1c3c"/>
+      <stop offset="100%" stop-color="#7a5cff"/>
+    </linearGradient>
+  </defs>
+  <rect width="320" height="320" rx="40" fill="#0a1024"/>
+  <path d="M160 54 54 246h212L160 54z" fill="url(#jellyfinGradient)"/>
+  <path d="M160 94 98 206h124L160 94z" fill="#0a1024"/>
+</svg>
