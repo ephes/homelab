@@ -80,12 +80,19 @@ class Command(BaseCommand):
                 "order": 8,
             },
             {
+                "name": "MeTube",
+                "description": "Share-sheet video downloader to Jellyfin (yt-dlp queue)",
+                "url": "https://metube.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-cloud-download-alt",
+                "order": 9,
+            },
+            {
                 "name": "Minecraft",
                 "description": "Java Edition server - Connect at macmini.fritz.box:25565",
                 "url": "",
                 "icon": "fas fa-cube",
                 "logo_filename": "minecraft.png",
-                "order": 9,
+                "order": 10,
             },
         ]
 
