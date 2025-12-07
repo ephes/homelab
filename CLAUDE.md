@@ -148,53 +148,26 @@ The justfile should provide these commands:
 
 ## DNS and Service Configuration
 
-### IMPORTANT: Django Services Must Match DNS Entries
+### Wildcard DNS
 
-The DNS configuration (Unbound) must have entries that exactly match the services defined in Django:
+The homelab uses **wildcard DNS** for `*.home.wersdörfer.de`. Any subdomain automatically resolves to macmini without manual DNS configuration:
 
-#### Current Django Services
-Located in `src/apps/core/management/commands/add_default_services.py`:
-- `homeassistant.home.wersdörfer.de` (NOT `ha.home.wersdörfer.de`)
-- `nyxmon.home.wersdörfer.de`
-- `unifi.home.wersdörfer.de`
-- `paperless.home.wersdörfer.de`
+- **LAN clients** (192.168.178.0/24): `*.home.wersdörfer.de` → `192.168.178.94`
+- **Tailscale clients** (100.64.0.0/10): `*.home.wersdörfer.de` → `100.119.21.93`
 
-#### DNS Configuration
-The Unbound configuration at `/etc/unbound/unbound.conf.d/09-local-override.conf` on macmini must include:
-- Both UTF-8 versions: `homeassistant.home.wersdörfer.de`
-- And IDN-encoded versions: `homeassistant.home.xn--wersdrfer-47a.de`
-
-**Note**: The domain `wersdörfer.de` contains an umlaut (ö) which gets encoded as `xn--wersdrfer-47a.de` in DNS queries.
-
-### Deploying DNS Changes
-
-To deploy DNS configuration changes:
-
-```bash
-# Deploy complete split-DNS setup (recommended)
-just deploy-split-dns
-
-# Or deploy only Unbound configuration
-just deploy-unbound
-
-# Test DNS resolution
-just dns-split-test
-
-# Check service status
-just dns-status
-```
+Traefik handles routing to the correct service based on the hostname.
 
 ### Adding New Services
 
-When adding a new service:
+When adding a new service (e.g., `webmail.home.wersdörfer.de`):
 
 1. **Add to Django**: Update `src/apps/core/management/commands/add_default_services.py`
-2. **Add to DNS**: Update `deploy/templates/unbound-local-zones.conf.j2` with both UTF-8 and IDN versions
-3. **Deploy**: Run `just deploy-split-dns` to update DNS configuration
-4. **Verify**: Test with `host <service>.home.wersdörfer.de 192.168.178.94`
+2. **Configure Traefik**: Add routing rules in `/etc/traefik/dynamic/`
+3. **No DNS changes needed** - wildcard DNS handles it automatically
 
 ### Infrastructure Details
 
 - **macmini server**: 192.168.178.94 (LAN) / 100.119.21.93 (Tailscale)
-- **DNS Stack**: Pi-hole (port 53) → Unbound (port 5335)
-- **Domain encoding**: `wersdörfer.de` → `xn--wersdrfer-47a.de` (IDN)
+- **DNS Stack**: Unbound-only on port 53 (split-horizon views)
+- **Domain encoding**: `wersdörfer.de` → `xn--wersdrfer-47a.de` (IDN/Punycode)
+- **Full DNS docs**: See `ops-control/docs/DNS_INFRASTRUCTURE.md`
