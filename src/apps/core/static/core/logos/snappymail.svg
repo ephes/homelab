@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SnappyMail">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop stop-color="#5ac8fa" offset="0"/>
+      <stop stop-color="#2f80ed" offset="1"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="10" width="56" height="44" rx="6" fill="url(#g)"/>
+  <path d="M10 16l22 18 22-18" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M18 24l14 12 14-12" fill="none" stroke="#e3f2ff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

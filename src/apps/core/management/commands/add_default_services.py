@@ -56,12 +56,20 @@ class Command(BaseCommand):
                 "order": 5,
             },
             {
+                "name": "SnappyMail",
+                "description": "Self-hosted webmail client for IMAP/SMTP access",
+                "url": "https://webmail.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-envelope",
+                "logo_filename": "snappymail.svg",
+                "order": 6,
+            },
+            {
                 "name": "MinIO",
                 "description": "S3-compatible object storage for backups and data archiving",
                 "url": "https://minio.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-database",
                 "logo_filename": "minio.png",
-                "order": 6,
+                "order": 7,
             },
             {
                 "name": "Navidrome",
@@ -69,7 +77,7 @@ class Command(BaseCommand):
                 "url": "https://music.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-music",
                 "logo_filename": "navidrome.png",
-                "order": 7,
+                "order": 8,
             },
             {
                 "name": "Jellyfin",
@@ -77,14 +85,14 @@ class Command(BaseCommand):
                 "url": "https://media.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-film",
                 "logo_filename": "jellyfin.svg",
-                "order": 8,
+                "order": 9,
             },
             {
                 "name": "MeTube",
                 "description": "Share-sheet video downloader to Jellyfin (yt-dlp queue)",
                 "url": "https://metube.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-cloud-download-alt",
-                "order": 9,
+                "order": 10,
             },
             {
                 "name": "Minecraft",
@@ -92,7 +100,7 @@ class Command(BaseCommand):
                 "url": "",
                 "icon": "fas fa-cube",
                 "logo_filename": "minecraft.png",
-                "order": 10,
+                "order": 11,
             },
         ]
 
