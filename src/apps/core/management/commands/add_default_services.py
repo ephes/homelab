@@ -56,12 +56,20 @@ class Command(BaseCommand):
                 "order": 5,
             },
             {
+                "name": "Vaultwarden",
+                "description": "Self-hosted password manager compatible with Bitwarden clients",
+                "url": "https://vault.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-lock",
+                "logo_filename": "vaultwarden.svg",
+                "order": 6,
+            },
+            {
                 "name": "SnappyMail",
                 "description": "Self-hosted webmail client for IMAP/SMTP access",
                 "url": "https://webmail.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-envelope",
                 "logo_filename": "snappymail.svg",
-                "order": 6,
+                "order": 7,
             },
             {
                 "name": "MinIO",
@@ -69,7 +77,7 @@ class Command(BaseCommand):
                 "url": "https://minio.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-database",
                 "logo_filename": "minio.png",
-                "order": 7,
+                "order": 8,
             },
             {
                 "name": "Navidrome",
@@ -77,7 +85,7 @@ class Command(BaseCommand):
                 "url": "https://music.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-music",
                 "logo_filename": "navidrome.png",
-                "order": 8,
+                "order": 9,
             },
             {
                 "name": "Jellyfin",
@@ -85,14 +93,14 @@ class Command(BaseCommand):
                 "url": "https://media.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-film",
                 "logo_filename": "jellyfin.svg",
-                "order": 9,
+                "order": 10,
             },
             {
                 "name": "MeTube",
                 "description": "Share-sheet video downloader to Jellyfin (yt-dlp queue)",
                 "url": "https://metube.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-cloud-download-alt",
-                "order": 10,
+                "order": 11,
             },
             {
                 "name": "Minecraft",
@@ -100,7 +108,7 @@ class Command(BaseCommand):
                 "url": "",
                 "icon": "fas fa-cube",
                 "logo_filename": "minecraft.png",
-                "order": 11,
+                "order": 12,
             },
         ]
 
