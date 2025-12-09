@@ -110,6 +110,14 @@ class Command(BaseCommand):
                 "logo_filename": "minecraft.png",
                 "order": 12,
             },
+            {
+                "name": "PostfixAdmin",
+                "description": "Mail user and alias management for self-hosted email",
+                "url": "https://mailadmin.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-users-cog",
+                "logo_filename": "postfixadmin.svg",
+                "order": 13,
+            },
         ]
 
         with transaction.atomic():
