@@ -118,6 +118,15 @@ class Command(BaseCommand):
                 "logo_filename": "postfixadmin.svg",
                 "order": 13,
             },
+            {
+                "name": "Fractal IPMI",
+                "description": "IPMI/BMC management interface for the fractal server",
+                "url": "https://asrock.fritz.box/",
+                "icon": "fas fa-microchip",
+                "logo_filename": "fractal-ipmi.svg",
+                "is_active": True,
+                "order": 14,
+            },
         ]
 
         with transaction.atomic():
