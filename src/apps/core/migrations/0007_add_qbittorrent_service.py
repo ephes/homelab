@@ -7,7 +7,7 @@ def add_qbittorrent(apps, schema_editor):
         name="qBittorrent",
         defaults={
             "description": "BitTorrent client for downloads and seeding",
-            "url": "https://torrent.wersdörfer.de",
+            "url": "https://torrent.home.wersdörfer.de",
             "icon": "fas fa-magnet",
             "is_active": True,
             "order": 17,

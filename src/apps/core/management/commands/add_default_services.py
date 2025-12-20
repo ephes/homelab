@@ -146,7 +146,7 @@ class Command(BaseCommand):
             {
                 "name": "qBittorrent",
                 "description": "BitTorrent client for downloads and seeding",
-                "url": "https://torrent.wersdörfer.de",
+                "url": "https://torrent.home.wersdörfer.de",
                 "icon": "fas fa-magnet",
                 "logo_filename": "qbittorrent.svg",
                 "order": 17,
