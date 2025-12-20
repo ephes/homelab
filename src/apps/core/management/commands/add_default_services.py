@@ -127,6 +127,22 @@ class Command(BaseCommand):
                 "is_active": True,
                 "order": 14,
             },
+            {
+                "name": "Family Blog CMS",
+                "description": "Wagtail admin for the family blog",
+                "url": "https://wersdoerfer.de/cms",
+                "icon": "fas fa-feather-alt",
+                "logo_filename": "wagtail.svg",
+                "order": 15,
+            },
+            {
+                "name": "Python Podcast CMS",
+                "description": "Wagtail admin for python-podcast.de",
+                "url": "https://python-podcast.de/cms",
+                "icon": "fas fa-podcast",
+                "logo_filename": "wagtail.svg",
+                "order": 16,
+            },
         ]
 
         with transaction.atomic():
