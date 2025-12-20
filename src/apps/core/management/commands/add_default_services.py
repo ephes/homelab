@@ -143,6 +143,14 @@ class Command(BaseCommand):
                 "logo_filename": "wagtail.svg",
                 "order": 16,
             },
+            {
+                "name": "qBittorrent",
+                "description": "BitTorrent client for downloads and seeding",
+                "url": "https://torrent.wersdörfer.de",
+                "icon": "fas fa-magnet",
+                "logo_filename": "qbittorrent.svg",
+                "order": 17,
+            },
         ]
 
         with transaction.atomic():
