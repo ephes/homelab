@@ -151,6 +151,13 @@ class Command(BaseCommand):
                 "logo_filename": "qbittorrent.svg",
                 "order": 17,
             },
+            {
+                "name": "Takahe",
+                "description": "Fediverse server for python-podcast.de",
+                "url": "https://fedi.python-podcast.de/",
+                "icon": "fas fa-comment-dots",
+                "order": 18,
+            },
         ]
 
         with transaction.atomic():
