@@ -158,6 +158,13 @@ class Command(BaseCommand):
                 "icon": "fas fa-comment-dots",
                 "order": 18,
             },
+            {
+                "name": "Mastodon",
+                "description": "Mastodon instance for wersdoerfer.de",
+                "url": "https://fedi.wersdoerfer.de/",
+                "icon": "fab fa-mastodon",
+                "order": 19,
+            },
         ]
 
         with transaction.atomic():
