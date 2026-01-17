@@ -165,6 +165,14 @@ class Command(BaseCommand):
                 "icon": "fab fa-mastodon",
                 "order": 19,
             },
+            {
+                "name": "Open WebUI",
+                "description": "Chat interface for local LLMs (Open WebUI)",
+                "url": "https://open-webui.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-comments",
+                "logo_filename": "open-webui.png",
+                "order": 20,
+            },
         ]
 
         with transaction.atomic():
