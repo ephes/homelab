@@ -173,6 +173,14 @@ class Command(BaseCommand):
                 "logo_filename": "open-webui.png",
                 "order": 20,
             },
+            {
+                "name": "Echoport",
+                "description": "Backup orchestration service for SQLite databases and config files",
+                "url": "https://echoport.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-cloud-upload-alt",
+                "logo_filename": "echoport.svg",
+                "order": 21,
+            },
         ]
 
         with transaction.atomic():
