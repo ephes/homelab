@@ -181,6 +181,14 @@ class Command(BaseCommand):
                 "logo_filename": "echoport.svg",
                 "order": 21,
             },
+            {
+                "name": "OpenClaw",
+                "description": "AI automation gateway and web dashboard",
+                "url": "https://openclaw.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-robot",
+                "logo_filename": "openclaw.svg",
+                "order": 22,
+            },
         ]
 
         with transaction.atomic():
