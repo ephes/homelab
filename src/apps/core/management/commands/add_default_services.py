@@ -189,6 +189,21 @@ class Command(BaseCommand):
                 "logo_filename": "openclaw.svg",
                 "order": 22,
             },
+            {
+                "name": "Graphyard",
+                "description": "Metrics catalog and operator interface for the homelab metrics platform",
+                "url": "https://graphyard.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-project-diagram",
+                "logo_filename": "graphyard.svg",
+                "order": 23,
+            },
+            {
+                "name": "Grafana",
+                "description": "Time-series dashboards and drill-down views for Graphyard metrics",
+                "url": "https://grafana.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-chart-area",
+                "order": 24,
+            },
         ]
 
         with transaction.atomic():

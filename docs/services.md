@@ -122,7 +122,8 @@ Homelab supports custom logo files for services, providing a more polished appea
 4. Save the service
 
 **Default Service Logos**:
-Home Assistant and Nyxmon services come with pre-configured logos that are automatically added when you run:
+Several built-in services, including Home Assistant, Nyxmon, and Graphyard, come with pre-configured
+logos, while others such as Grafana use a curated icon fallback. They are automatically added when you run:
 ```bash
 just manage add_default_services
 ```

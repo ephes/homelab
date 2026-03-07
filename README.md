@@ -9,7 +9,7 @@ A Django application for managing home infrastructure and services.
 - SQLite database for simplicity
 - Responsive design
 - Admin interface for easy management
-- Default services (Home Assistant, Nyxmon) with pre-configured logos
+- Default services with pre-configured logos/icons, including Graphyard and Grafana
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ A Django application for managing home infrastructure and services.
    just createsuperuser
    ```
 
-6. Add default services with logos:
+6. Add default services with logos/icons:
    ```bash
    just manage add_default_services
    ```
