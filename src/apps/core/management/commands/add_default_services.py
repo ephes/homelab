@@ -190,19 +190,26 @@ class Command(BaseCommand):
                 "order": 22,
             },
             {
+                "name": "Voxhelm",
+                "description": "Operator UI for local audio/video transcription and transcript exports",
+                "url": "https://voxhelm.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-wave-square",
+                "order": 23,
+            },
+            {
                 "name": "Graphyard",
                 "description": "Metrics catalog and operator interface for the homelab metrics platform",
                 "url": "https://graphyard.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-project-diagram",
                 "logo_filename": "graphyard.svg",
-                "order": 23,
+                "order": 24,
             },
             {
                 "name": "Grafana",
                 "description": "Time-series dashboards and drill-down views for Graphyard metrics",
                 "url": "https://grafana.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-chart-area",
-                "order": 24,
+                "order": 25,
             },
         ]
 
