@@ -211,6 +211,22 @@ class Command(BaseCommand):
                 "icon": "fas fa-chart-area",
                 "order": 25,
             },
+            {
+                "name": "OpsGate",
+                "description": "Approval queue and audit surface for human-reviewed operator actions",
+                "url": "https://opsgate.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-clipboard-check",
+                "order": 25,
+            },
+            {
+                "name": "Archive",
+                "description": (
+                    "Self-hosted archive for saved links, podcast episodes, and videos with summaries and public feeds"
+                ),
+                "url": "https://archive.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-box-archive",
+                "order": 26,
+            },
         ]
 
         with transaction.atomic():
