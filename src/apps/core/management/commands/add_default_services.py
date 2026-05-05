@@ -227,6 +227,13 @@ class Command(BaseCommand):
                 "icon": "fas fa-box-archive",
                 "order": 26,
             },
+            {
+                "name": "Zellij (studio)",
+                "description": "Web client for the zellij terminal multiplexer running on studio (tailnet only)",
+                "url": "http://studio.tailde2ec.ts.net:8082/",
+                "icon": "fas fa-terminal",
+                "order": 27,
+            },
         ]
 
         with transaction.atomic():
