@@ -230,7 +230,7 @@ class Command(BaseCommand):
             {
                 "name": "Zellij (studio)",
                 "description": "Web client for the zellij terminal multiplexer running on studio (tailnet only)",
-                "url": "http://studio.tailde2ec.ts.net:8082/",
+                "url": "https://zellij.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-terminal",
                 "order": 27,
             },
