@@ -234,6 +234,13 @@ class Command(BaseCommand):
                 "icon": "fas fa-terminal",
                 "order": 27,
             },
+            {
+                "name": "Mailgun Relay",
+                "description": "Self-hosted Mailgun-API-compatible SMTP relay for django-anymail clients",
+                "url": "https://mailgun.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-envelope-square",
+                "order": 28,
+            },
         ]
 
         with transaction.atomic():
