@@ -241,6 +241,13 @@ class Command(BaseCommand):
                 "icon": "fas fa-envelope-square",
                 "order": 28,
             },
+            {
+                "name": "Recorder",
+                "description": "Remote podcast recording — browser local-master double-ender capture with resumable upload and per-track WAV export",
+                "url": "https://recorder.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-microphone",
+                "order": 29,
+            },
         ]
 
         with transaction.atomic():
