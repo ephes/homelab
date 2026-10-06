@@ -248,6 +248,13 @@ class Command(BaseCommand):
                 "icon": "fas fa-microphone",
                 "order": 29,
             },
+            {
+                "name": "Work",
+                "description": "Agent work ledger — what needs me, in progress, blocked, recently finished",
+                "url": "https://work.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-tasks",
+                "order": 30,
+            },
         ]
 
         with transaction.atomic():

@@ -34,3 +34,14 @@ def test_add_default_services_updates_existing_opsgate():
     assert opsgate.icon == "fas fa-clipboard-check"
     assert opsgate.is_active is False
     assert opsgate.order == 25
+
+
+def test_add_default_services_includes_work_app():
+    call_command("add_default_services")
+
+    work = Service.objects.get(name="Work")
+
+    assert work.url == "https://work.home.xn--wersdrfer-47a.de/"
+    assert work.icon == "fas fa-tasks"
+    assert work.is_active is True
+    assert work.order == 30
