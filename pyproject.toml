@@ -12,8 +12,8 @@ dependencies = [
     "gunicorn",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest-django",
     "pytest-cov",
     "ruff",

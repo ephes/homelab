@@ -414,34 +414,9 @@ sys.path.insert(0, str(src_dir))
 
 ## Continuous Integration
 
-Example GitHub Actions workflow:
-
-```yaml
-name: Tests
-
-on: [push, pull_request]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
-    
-    - name: Install dependencies
-      run: |
-        pip install uv
-        uv sync
-    
-    - name: Run tests
-      run: |
-        uv run pytest --cov
-    
-    - name: Upload coverage
-      uses: codecov/codecov-action@v3
-```
+`.github/workflows/ci.yml` runs on every push, pull request and manual dispatch.
+It mirrors the local recipes: `just lint` (the pre-commit Ruff hooks over all
+files), `ruff check` and `ruff format --check` on `src tests` with the locked
+Ruff, and `just test` (`uv run pytest`). Actions are pinned by commit SHA, the
+token is read-only and no secrets are used. Development dependencies live in
+the `dev` group under `[dependency-groups]`, which `uv sync` installs by default.
