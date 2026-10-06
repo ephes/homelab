@@ -109,3 +109,61 @@ class TestHomeView:
         assert '<i class="fas fa-server"></i>' in content
 
         service.delete()
+
+
+@pytest.mark.django_db
+class TestConnectionInfoView:
+    """The connection-info page derives the client address from the proxy-appended XFF entry."""
+
+    url = "/connection-info/"
+
+    def get(self, client, xff=None, remote_addr="127.0.0.1"):
+        extra = {"REMOTE_ADDR": remote_addr}
+        if xff is not None:
+            extra["HTTP_X_FORWARDED_FOR"] = xff
+        return client.get(self.url, **extra)
+
+    def test_url_resolves(self):
+        assert reverse("core:connection-info") == self.url
+
+    def test_uses_rightmost_forwarded_entry(self, client):
+        # A client-supplied Tailscale address on the left must not win over the proxy-appended one.
+        response = self.get(client, xff="100.100.1.1, 8.8.4.4")
+        assert response.status_code == 200
+        assert response.context["client_ip"] == "8.8.4.4"
+        assert response.context["is_tailscale"] is False
+        assert response.context["is_local"] is False
+
+    def test_spoofed_local_address_is_ignored(self, client):
+        response = self.get(client, xff="192.168.178.10,8.8.4.4")
+        assert response.context["client_ip"] == "8.8.4.4"
+        assert response.context["is_local"] is False
+
+    def test_tailscale_badge_from_proxy_entry(self, client):
+        response = self.get(client, xff="100.119.21.5")
+        assert response.context["client_ip"] == "100.119.21.5"
+        assert response.context["is_tailscale"] is True
+
+    def test_local_badge_from_proxy_entry(self, client):
+        response = self.get(client, xff="8.8.8.8, 192.168.178.20")
+        assert response.context["is_local"] is True
+        assert response.context["is_tailscale"] is False
+
+    def test_ipv6_entry(self, client):
+        response = self.get(client, xff="2001:db8::1")
+        assert response.context["client_ip"] == "2001:db8::1"
+
+    def test_falls_back_to_remote_addr_without_header(self, client):
+        response = self.get(client, remote_addr="100.101.102.103")
+        assert response.context["client_ip"] == "100.101.102.103"
+        assert response.context["is_tailscale"] is True
+
+    @pytest.mark.parametrize("xff", ["", " ", "1.2.3.4, ", "100.64.0.1, not-an-ip"])
+    def test_falls_back_to_remote_addr_for_unusable_last_entry(self, client, xff):
+        response = self.get(client, xff=xff, remote_addr="9.9.9.9")
+        assert response.context["client_ip"] == "9.9.9.9"
+        assert response.context["is_tailscale"] is False
+
+    def test_raw_header_is_still_shown_for_debugging(self, client):
+        response = self.get(client, xff="100.100.1.1, 8.8.4.4")
+        assert response.context["forwarded_for"] == "100.100.1.1, 8.8.4.4"

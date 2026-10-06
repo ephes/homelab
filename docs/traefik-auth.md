@@ -98,6 +98,14 @@ If you want to implement Tailscale bypass in the future:
 2. **Traefik Plugin**: Use or develop a plugin for conditional authentication
 3. **Application Level**: Handle auth bypass in your Django application based on client IP
 
+### Client IP on the Connection Info page
+`/connection-info/` shows the client address and a Tailscale/Local/Public badge. The app runs behind a
+single Traefik hop, so it reads the **rightmost** `X-Forwarded-For` entry, the one Traefik appends for the
+connection it received, and falls back to `REMOTE_ADDR` when the header is missing or that entry is not an
+IP address. Entries further left are sent by the client and can be spoofed, so they are ignored. If another
+proxy is ever added in front of Traefik, this rule must change. The page is for display only; any future
+application-level auth bypass must likewise trust only the proxy-appended entry.
+
 ## Changing Credentials
 
 To change the username or password:

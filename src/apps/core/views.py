@@ -17,14 +17,28 @@ class HomeView(ListView):
         return Service.objects.filter(is_active=True)
 
 
+def client_ip_from_request(request):
+    """Return the client address as seen by the reverse proxy in front of the app.
+
+    Traefik appends the address it received the connection from to ``X-Forwarded-For``, so only the
+    rightmost entry is trustworthy; anything to its left was sent by the client and can be spoofed.
+    Falls back to ``REMOTE_ADDR`` when the header is missing or its last entry is not an IP address.
+    Display only: never use this for access decisions.
+    """
+    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    candidate = x_forwarded_for.split(",")[-1].strip()
+    if candidate:
+        try:
+            return str(ipaddress.ip_address(candidate))
+        except ValueError:
+            pass
+    return request.META.get("REMOTE_ADDR") or "Unknown"
+
+
 def connection_info(request):
     """Display connection information for debugging."""
-    # Get client IP
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        client_ip = x_forwarded_for.split(",")[0].strip()
-    else:
-        client_ip = request.META.get("REMOTE_ADDR", "Unknown")
+    client_ip = client_ip_from_request(request)
 
     # Check if it's a Tailscale IP (100.64.0.0/10)
     is_tailscale = False
