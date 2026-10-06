@@ -118,6 +118,24 @@ def test_service_display(service):
     assert service.is_active is True
 ```
 
+### Media Isolation
+
+`tests/conftest.py` defines a session-scoped, autouse `isolated_media_root`
+fixture that overrides `MEDIA_ROOT` with a per-session pytest temporary
+directory. Uploads written during tests (for example the service logos that
+`add_default_services` saves) therefore never land in the source tree. Request
+the fixture when a test needs the path:
+
+```python
+def test_logo_upload(isolated_media_root):
+    ...
+```
+
+`config/settings/test.py` still sets `MEDIA_ROOT = BASE_DIR / "test_media"`
+(`src/test_media/`, gitignored) only as a fallback for code that loads the test
+settings outside pytest. If an older checkout left files there, they are safe to
+delete.
+
 ## Testing Views
 
 ### View Test Example

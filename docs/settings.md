@@ -130,6 +130,15 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 ```
 
+Media is served by Django in every environment (`config.media.serve_media`,
+wired in `config/urls.py`). Every media response carries
+`X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'`,
+so an uploaded file such as an SVG logo that is opened directly runs in a
+sandboxed opaque origin without script. Embedding logos via `<img>` is
+unaffected. Tests use a per-session temporary `MEDIA_ROOT` (see
+[Testing](testing.md#media-isolation)).
+
 ### Internationalization
 
 ```python

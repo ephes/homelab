@@ -27,6 +27,9 @@ PASSWORD_HASHERS = [
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
 # Media files
+# tests/conftest.py redirects MEDIA_ROOT to a per-session temporary directory so
+# uploads never land in the source tree. This path is only a gitignored fallback
+# for code that loads the test settings outside pytest.
 MEDIA_ROOT = BASE_DIR / "test_media"  # noqa
 
 

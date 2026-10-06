@@ -33,6 +33,7 @@ ENV/
 .DS_Store
 
 # Testing
+src/test_media/
 .coverage
 .pytest_cache/
 htmlcov/

@@ -23,6 +23,21 @@ def pytest_configure():
     django.setup()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolated_media_root(tmp_path_factory):
+    """
+    Point MEDIA_ROOT at a per-session temporary directory.
+
+    Uploads written by tests (e.g. service logos saved by add_default_services)
+    must never land in the source tree.
+    """
+    from django.test import override_settings
+
+    media_root = tmp_path_factory.mktemp("media")
+    with override_settings(MEDIA_ROOT=str(media_root)):
+        yield media_root
+
+
 @pytest.fixture(autouse=True)
 def enable_db_access_for_all_tests(db):
     """
