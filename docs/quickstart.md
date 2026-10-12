@@ -13,7 +13,7 @@ git clone <repository-url>
 cd homelab
 just install
 
-# Configure
+# Configure (.env belongs in the repository root, next to manage.py)
 cp .env.example .env
 just db-migrate
 just createsuperuser

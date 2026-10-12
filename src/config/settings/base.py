@@ -2,26 +2,41 @@
 Base settings for homelab project.
 """
 
-import os
+import warnings
 from pathlib import Path
 
 import environ
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
+# BASE_DIR is the ``src`` directory (static, media and the default database
+# live relative to it or to the working directory).
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# The repository / deployment root: the directory that holds manage.py,
+# pyproject.toml and the one supported dotenv file.
+PROJECT_ROOT = BASE_DIR.parent
+DOTENV_PATH = PROJECT_ROOT / ".env"
+LEGACY_DOTENV_PATH = BASE_DIR / ".env"
+
 # Load environment variables
-env = environ.Env(
-    DEBUG=(bool, False),
-)
-# Read .env file
-environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+env = environ.Env()
+# Read <project root>/.env. Variables already exported in the process
+# environment (for example by systemd's EnvironmentFile) always win.
+environ.Env.read_env(DOTENV_PATH)
+if LEGACY_DOTENV_PATH.is_file():
+    warnings.warn(
+        f"{LEGACY_DOTENV_PATH} is not read. Move its settings to {DOTENV_PATH}.",
+        RuntimeWarning,
+        stacklevel=1,
+    )
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env("DJANGO_SECRET_KEY", default="django-insecure-CHANGEME-IN-PRODUCTION")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env("DEBUG")
+# DEBUG is decided by the settings module, never by an environment variable:
+# config.settings.local turns it on, production and test keep it off.
+DEBUG = False
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 

@@ -31,13 +31,13 @@ SECRET_KEY = env("DJANGO_SECRET_KEY", default="django-insecure-CHANGEME")
 
 #### DEBUG
 - **Type**: Boolean
-- **Default**: False
+- **Base / Test / Production**: False
 - **Local**: True
-- **Production**: Must be False
-- **Warning**: Never enable in production
+- **Not configurable through the environment**: the settings module decides.
+  There is no `DEBUG` or `DJANGO_DEBUG` variable.
 
 ```python
-DEBUG = env("DEBUG", default=False)
+DEBUG = False  # base.py; local.py sets True, production.py and test.py False
 ```
 
 #### ALLOWED_HOSTS
@@ -324,7 +324,12 @@ MIGRATION_MODULES = DisableMigrations()
 
 ## Environment Variables
 
-Complete list of environment variables used by Homelab.
+Complete list of environment variables used by Homelab. They are read from the
+process environment and from `<repository root>/.env`; exported variables win.
+`src/.env` is not read. See [Configuration](configuration.md).
+
+Debug mode is not an environment variable: `config.settings.local` enables it,
+`config.settings.production` and `config.settings.test` disable it.
 
 ### Required in Production
 
@@ -337,7 +342,7 @@ Complete list of environment variables used by Homelab.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DJANGO_DEBUG` | Enable debug mode | `False` |
+| `DJANGO_SECURE_SSL_REDIRECT` | Redirect HTTP to HTTPS (production) | `True` |
 | `DATABASE_URL` | Database connection string | `sqlite:///db.sqlite3` |
 | `DJANGO_ADMIN_URL` | Admin panel URL path | `admin/` |
 | `DJANGO_CACHE_LOCATION` | Cache file location | `/tmp/homelab_cache` |

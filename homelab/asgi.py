@@ -1,16 +1,15 @@
 """
-ASGI config for homelab project.
+Legacy ASGI entrypoint, kept for launchers that still import ``homelab.asgi``.
 
-It exposes the ASGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/4.0/howto/deployment/asgi/
+The project is deployed through WSGI (``src.config.wsgi:application``). This
+module serves the same project with the same default settings
+(``config.settings.production``) instead of the retired ``homelab.settings``.
 """
-
-import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "homelab.settings")
+from ._canonical import configure
+
+configure()
 
 application = get_asgi_application()

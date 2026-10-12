@@ -22,8 +22,9 @@ just createsuperuser
 
 ### Static Files Not Loading
 ```bash
-# Development
-DEBUG=True  # in .env
+# Development: use the local settings (DEBUG is on there; it is not an
+# environment variable). manage.py selects them by default.
+export DJANGO_SETTINGS_MODULE=config.settings.local
 
 # Production
 just collectstatic
@@ -51,7 +52,7 @@ cd /home/homelab/site
 ### 500 Errors
 1. Check logs: `sudo journalctl -u homelab -f`
 2. Verify `ALLOWED_HOSTS` includes your domain
-3. Ensure `DEBUG=False` in production
+3. Ensure the service runs `config.settings.production` (`DEBUG` is always off there)
 4. Run `just manage check --deploy`
 
 ### Database Locked
