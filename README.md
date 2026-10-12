@@ -31,10 +31,12 @@ A Django application for managing home infrastructure and services.
    just install
    ```
 
-3. Copy environment file:
+3. Copy environment file to the repository root (next to `manage.py`):
    ```bash
    cp .env.example .env
    ```
+   This is the only dotenv file the settings read. See
+   [docs/configuration.md](docs/configuration.md).
 
 4. Run migrations:
    ```bash

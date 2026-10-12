@@ -83,13 +83,14 @@ homelab/
 
 ## Environment Variables
 
-Required environment variables (see .env.example):
+Environment variables (see .env.example). The settings read `.env` from the
+repository root only (not `src/.env`); exported variables win. `DEBUG` is set
+by the settings module (`local` on, `production`/`test` off), not by a variable:
 
 ```bash
 # Django settings
 DJANGO_SETTINGS_MODULE=config.settings.local
 DJANGO_SECRET_KEY=your-secret-key-here
-DJANGO_DEBUG=True
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
 
 # Database (SQLite)

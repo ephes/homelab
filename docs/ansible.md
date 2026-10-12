@@ -173,7 +173,6 @@ The `deploy.yml` playbook performs these tasks:
 ```django
 DJANGO_SETTINGS_MODULE={{ django_settings_module }}
 DJANGO_SECRET_KEY={{ django_secret_key }}
-DJANGO_DEBUG=False
 DJANGO_ALLOWED_HOSTS={{ fqdn }},{{ ansible_host }}
 DATABASE_URL=sqlite:///{{ site_path }}/db.sqlite3
 DJANGO_ADMIN_URL={{ admin_url }}
@@ -193,7 +192,7 @@ WorkingDirectory={{ site_path }}
 Environment="DJANGO_SETTINGS_MODULE={{ django_settings_module }}"
 ExecStart={{ site_path }}/.venv/bin/granian \
     --interface wsgi \
-    config.wsgi:application \
+    src.config.wsgi:application \
     --host 0.0.0.0 \
     --port {{ port }} \
     --workers 2

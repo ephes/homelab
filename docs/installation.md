@@ -57,7 +57,8 @@ pre-commit install
 
 ### Environment Variables
 
-Copy the example environment file:
+Copy the example environment file to the repository root (next to
+`manage.py`). This is the only dotenv file the settings read:
 
 ```bash
 cp .env.example .env
@@ -68,9 +69,12 @@ Key environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DJANGO_SECRET_KEY` | Secret key for Django | Auto-generated |
-| `DJANGO_DEBUG` | Debug mode | `True` (development) |
 | `DATABASE_URL` | Database connection | `sqlite:///db.sqlite3` |
-| `DJANGO_ALLOWED_HOSTS` | Allowed hostnames | `localhost,127.0.0.1` |
+| `DJANGO_ALLOWED_HOSTS` | Allowed hostnames (production settings) | `home.wersdoerfer.de` |
+
+Debug mode is on with the local settings (`config.settings.local`, the
+`manage.py` default) and off with the production settings. It is not an
+environment variable.
 
 ### Database Setup
 
