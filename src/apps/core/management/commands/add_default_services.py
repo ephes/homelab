@@ -278,11 +278,26 @@ class Command(BaseCommand):
                     if logo_filename:
                         logo_path = logos_dir / logo_filename
                         if logo_path.exists() and not service.logo_file:
+                            # Pick the storage name up front and record it before writing:
+                            # a write that fails half way (disk full) leaves a partial
+                            # file under exactly this name. get_available_name never
+                            # returns an existing file, so the recorded name cannot
+                            # belong to an earlier logo.
+                            logo_field = service.logo_file.field
+                            planned_name = logo_storage.get_available_name(
+                                logo_field.generate_filename(service, logo_filename),
+                                max_length=logo_field.max_length,
+                            )
+                            stored_logo_names.append(planned_name)
                             with open(logo_path, "rb") as f:
-                                # save=False: record the stored name before the row is
-                                # saved, so a failing row save cannot hide the file.
-                                service.logo_file.save(logo_filename, File(f), save=False)
-                                stored_logo_names.append(service.logo_file.name)
+                                # Saving under the planned base name makes the storage use
+                                # the planned name. save=False: the row is saved separately
+                                # below, so a failing row save cannot hide the file either.
+                                service.logo_file.save(Path(planned_name).name, File(f), save=False)
+                            if service.logo_file.name != planned_name:
+                                # Another writer took the planned name in between: that
+                                # file is theirs, ours is the one the storage reports.
+                                stored_logo_names[-1] = service.logo_file.name
                             service.save()
                             self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
 
@@ -300,6 +315,9 @@ class Command(BaseCommand):
     def _remove_stored_logos(self, storage, names: list[str]) -> None:
         for name in names:
             try:
+                if not storage.exists(name):
+                    # The write failed before the storage created the file.
+                    continue
                 storage.delete(name)
             except Exception as error:  # noqa: BLE001 - keep cleaning up, the original error is re-raised
                 self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))

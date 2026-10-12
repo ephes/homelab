@@ -1,7 +1,9 @@
+import errno
 from io import StringIO
 from pathlib import Path
 
 import pytest
+from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.db import IntegrityError
@@ -92,6 +94,57 @@ def test_failed_logo_save_removes_logos_stored_by_the_same_run(logo_dir, monkeyp
     assert len(calls) == 3
     assert Service.objects.count() == 0
     assert stored_logos(logo_dir) == []
+
+
+def fail_logo_write_after_first_chunk(monkeypatch, failing_file):
+    """Let the storage create the destination file, then fail while writing it (disk full)."""
+    original = File.chunks
+    opened = []
+
+    def chunks(self, chunk_size=None):
+        opened.append(self.name)
+        if len(opened) == failing_file:
+            yield b"partial123"
+            raise OSError(errno.ENOSPC, "No space left on device")
+        yield from original(self, chunk_size)
+
+    monkeypatch.setattr(File, "chunks", chunks)
+    return opened
+
+
+def test_partially_written_logo_is_removed_and_retry_reuses_its_name(logo_dir, monkeypatch):
+    opened = fail_logo_write_after_first_chunk(monkeypatch, failing_file=3)
+
+    with pytest.raises(OSError, match="No space left"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert len(opened) == 3
+    assert Service.objects.count() == 0
+    # Neither the two complete logos nor the 10-byte partial third one are left.
+    assert stored_logos(logo_dir) == []
+
+    monkeypatch.undo()
+    call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    names = sorted(
+        Path(name).name for name in Service.objects.exclude(logo_file="").values_list("logo_file", flat=True)
+    )
+    assert names == stored_logos(logo_dir)
+    partial_name = Path(opened[2]).name
+    assert partial_name in names
+    assert not [name for name in names if name.startswith(Path(partial_name).stem + "_")]
+
+
+def test_partial_write_never_removes_an_existing_logo_with_the_same_name(logo_dir, monkeypatch):
+    existing = Service.objects.create(name="Keeps Its Logo", url="https://example.invalid/")
+    existing.logo_file.save("home-assistant.png", ContentFile(b"my own logo"), save=True)
+    fail_logo_write_after_first_chunk(monkeypatch, failing_file=1)
+
+    with pytest.raises(OSError, match="No space left"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert stored_logos(logo_dir) == ["home-assistant.png"]
+    assert (logo_dir / "home-assistant.png").read_bytes() == b"my own logo"
 
 
 def test_failed_run_keeps_existing_services_and_logos(logo_dir, monkeypatch):

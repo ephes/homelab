@@ -135,7 +135,8 @@ after the next `just deploy-one homelab`.
 The command writes all services in one database transaction. Logo files are copied to
 `MEDIA_ROOT/services/logos/` while it runs; if the run fails (a logo cannot be stored, a
 service cannot be saved), the service changes are rolled back and the logo files stored by
-that run are removed again, so a retry does not pile up suffixed copies. Logos that existed
+that run are removed again, including a logo that was only partly written (for example when
+the disk is full), so a retry does not pile up suffixed copies. Logos that existed
 before the run are never touched. This is not a general media cleanup: files orphaned by
 other means stay where they are.
 
