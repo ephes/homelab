@@ -7,7 +7,6 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.db import IntegrityError
-from django.db.models.fields.files import FieldFile
 
 from apps.core.models import Service
 
@@ -71,17 +70,18 @@ def stored_logos(logo_dir):
 
 
 def fail_logo_save_on_call(monkeypatch, failing_call):
-    """Let FieldFile.save work until the given call, which fails like a full disk would."""
-    original = FieldFile.save
+    """Let the storage reserve names until the given call, which fails before creating a file."""
+    storage = Service._meta.get_field("logo_file").storage
+    original = storage.save
     calls = []
 
-    def save(self, name, content, save=True):
+    def save(name, content, max_length=None):
         calls.append(name)
         if len(calls) == failing_call:
             raise OSError("storage is full")
-        return original(self, name, content, save=save)
+        return original(name, content, max_length=max_length)
 
-    monkeypatch.setattr(FieldFile, "save", save)
+    monkeypatch.setattr(storage, "save", save)
     return calls
 
 
@@ -102,6 +102,10 @@ def fail_logo_write_after_first_chunk(monkeypatch, failing_file):
     opened = []
 
     def chunks(self, chunk_size=None):
+        if not self.name:
+            # The empty reservation file, not a logo source.
+            yield from original(self, chunk_size)
+            return
         opened.append(self.name)
         if len(opened) == failing_file:
             yield b"partial123"
@@ -145,6 +149,35 @@ def test_partial_write_never_removes_an_existing_logo_with_the_same_name(logo_di
 
     assert stored_logos(logo_dir) == ["home-assistant.png"]
     assert (logo_dir / "home-assistant.png").read_bytes() == b"my own logo"
+
+
+def test_name_taken_by_another_upload_before_a_failed_write_is_not_removed(logo_dir, monkeypatch):
+    """Another upload takes the free name first; our write then fails on its own, suffixed file."""
+    storage = Service._meta.get_field("logo_file").storage
+    original = storage.get_available_name
+    competing = []
+
+    def get_available_name(name, max_length=None):
+        available = original(name, max_length=max_length)
+        if not competing:
+            # The competing upload wins the race for exactly the name we were just offered.
+            competing.append(available)
+            target = Path(storage.path(available))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"someone else's upload")
+        return available
+
+    monkeypatch.setattr(storage, "get_available_name", get_available_name)
+    fail_logo_write_after_first_chunk(monkeypatch, failing_file=1)
+
+    with pytest.raises(OSError, match="No space left"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert Service.objects.count() == 0
+    other = Path(competing[0]).name
+    # The other upload is untouched and our suffixed partial file is gone.
+    assert stored_logos(logo_dir) == [other]
+    assert (logo_dir / other).read_bytes() == b"someone else's upload"
 
 
 def test_failed_run_keeps_existing_services_and_logos(logo_dir, monkeypatch):
