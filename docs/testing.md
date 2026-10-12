@@ -420,3 +420,22 @@ files), `ruff check` and `ruff format --check` on `src tests` with the locked
 Ruff, and `just test` (`uv run pytest`). Actions are pinned by commit SHA, the
 token is read-only and no secrets are used. Development dependencies live in
 the `dev` group under `[dependency-groups]`, which `uv sync` installs by default.
+
+
+### Required Django gates
+
+CI also runs these commands with the frozen dependencies and isolated test
+settings (in-memory SQLite, no production secrets or external services):
+
+```bash
+UV_FROZEN=1 DJANGO_SETTINGS_MODULE=config.settings.test uv run python manage.py check
+UV_FROZEN=1 DJANGO_SETTINGS_MODULE=config.settings.test uv run python manage.py makemigrations --check --dry-run
+```
+
+Both must pass alongside lint, format and tests. The first rejects invalid
+Django configuration; the second rejects model changes without committed
+migrations and writes no migration files. Test settings leave migration modules
+enabled for management commands; pytest's `--no-migrations` option still bypasses
+migrations when constructing its test database. `tests/test_ci_gates.py` verifies
+the current source passes and intentional model/URL faults fail in disposable
+source copies. Production `check --deploy` is a separate operator check.

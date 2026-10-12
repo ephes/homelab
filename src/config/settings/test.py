@@ -33,16 +33,8 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 MEDIA_ROOT = BASE_DIR / "test_media"  # noqa
 
 
-# Disable migrations for tests
-class DisableMigrations:
-    def __contains__(self, item):
-        return True
-
-    def __getitem__(self, item):
-        return None
-
-
-MIGRATION_MODULES = DisableMigrations()
+# Management commands inspect committed migrations. Pytest disables migrations
+# with --no-migrations in pytest.ini for its fast database setup.
 
 # Static files
 STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
