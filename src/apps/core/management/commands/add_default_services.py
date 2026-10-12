@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.core.files import File
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -260,22 +261,62 @@ class Command(BaseCommand):
             },
         ]
 
-        with transaction.atomic():
-            for service_data in services:
-                logo_filename = service_data.pop("logo_filename", None)
+        # Logo files are written to storage right away, but the service rows only
+        # become permanent when the transaction commits. Remember every file this
+        # run stores so a failed run can take them back out again.
+        stored_logo_names: list[str] = []
+        logo_storage = Service._meta.get_field("logo_file").storage
+        try:
+            with transaction.atomic():
+                for service_data in services:
+                    logo_filename = service_data.pop("logo_filename", None)
 
-                service, created = Service.objects.update_or_create(name=service_data["name"], defaults=service_data)
+                    service, created = Service.objects.update_or_create(
+                        name=service_data["name"], defaults=service_data
+                    )
 
-                # Add logo file if specified and file exists
-                if logo_filename:
-                    logo_path = logos_dir / logo_filename
-                    if logo_path.exists() and not service.logo_file:
-                        with open(logo_path, "rb") as f:
-                            service.logo_file.save(logo_filename, File(f), save=True)
-                        self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
+                    # Add logo file if specified and file exists
+                    if logo_filename:
+                        logo_path = logos_dir / logo_filename
+                        if logo_path.exists() and not service.logo_file:
+                            # Reserve the name first: storage.save() picks a free name
+                            # and creates the (still empty) file atomically, so the name
+                            # it returns is ours and nobody else's. Only names returned
+                            # here are ever removed by the cleanup.
+                            logo_field = service.logo_file.field
+                            reserved_name = logo_storage.save(
+                                logo_field.generate_filename(service, logo_filename),
+                                ContentFile(b""),
+                                max_length=logo_field.max_length,
+                            )
+                            stored_logo_names.append(reserved_name)
+                            # Fill the reserved file. If this fails half way (disk full),
+                            # the partial file is already recorded and gets removed.
+                            with open(logo_path, "rb") as f, logo_storage.open(reserved_name, "wb") as destination:
+                                for chunk in File(f).chunks():
+                                    destination.write(chunk)
+                            # The row is saved separately, so a failing row save cannot
+                            # hide the stored file either.
+                            service.logo_file.name = reserved_name
+                            service.save()
+                            self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
 
-                status = "Created" if created else "Updated"
-                self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
+                    status = "Created" if created else "Updated"
+                    self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
+        except BaseException:
+            # The transaction is rolled back at this point, so no row refers to these
+            # files. Logos that existed before this run are not in the list.
+            self._remove_stored_logos(logo_storage, stored_logo_names)
+            raise
 
         total = Service.objects.count()
         self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
+
+    def _remove_stored_logos(self, storage, names: list[str]) -> None:
+        for name in names:
+            try:
+                storage.delete(name)
+            except Exception as error:  # noqa: BLE001 - keep cleaning up, the original error is re-raised
+                self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))
+            else:
+                self.stderr.write(f"Removed logo file {name} after the failed run")
