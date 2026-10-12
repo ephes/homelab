@@ -132,6 +132,13 @@ just manage add_default_services
 In production the ops-control homelab deploy runs this command, so a new default tile appears
 after the next `just deploy-one homelab`.
 
+The command writes all services in one database transaction. Logo files are copied to
+`MEDIA_ROOT/services/logos/` while it runs; if the run fails (a logo cannot be stored, a
+service cannot be saved), the service changes are rolled back and the logo files stored by
+that run are removed again, so a retry does not pile up suffixed copies. Logos that existed
+before the run are never touched. This is not a general media cleanup: files orphaned by
+other means stay where they are.
+
 ## Icon Selection Guide
 
 ### Icon Categories
