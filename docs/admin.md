@@ -90,6 +90,18 @@ Features:
 2. Select "Delete selected services" from actions
 3. Confirm deletion
 
+### Logo file cleanup
+
+Replacing or clearing a logo, or deleting services individually or in bulk,
+retires the old uploaded file after the database transaction commits. The file
+is kept if any Service still references its storage name at cleanup time.
+Rolled-back admin changes preserve the old file; replacement uploads remain
+available after successful saves. Database rollback does not undo a new upload.
+
+This applies to future admin actions only, not direct model/queryset changes or
+historical orphan files. Storage cleanup failures are logged after commit and
+do not undo the saved database change; failed cleanup may require a manual retry.
+
 ## User Management
 
 ### Viewing Users
