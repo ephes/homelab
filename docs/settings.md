@@ -309,18 +309,15 @@ PASSWORD_HASHERS = [
 ]
 ```
 
-### Disable Migrations
+### Migration Checks
 
-```python
-class DisableMigrations:
-    def __contains__(self, item):
-        return True
-    
-    def __getitem__(self, item):
-        return None
+Test settings leave committed migration modules enabled so management commands
+can detect model changes without migrations. Pytest skips migration execution
+through `--no-migrations` in `pytest.ini` when building its test database.
 
-MIGRATION_MODULES = DisableMigrations()
-```
+CI runs `manage.py check` and `makemigrations --check --dry-run` with
+`DJANGO_SETTINGS_MODULE=config.settings.test`; see the required gates in
+[Testing](testing.md#required-django-gates).
 
 ## Environment Variables
 

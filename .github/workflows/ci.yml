@@ -3,7 +3,8 @@ name: CI
 # Same checks as `just lint` and `just test`, plus the `ruff check` and
 # `ruff format --check` half of `just format` with the locked Ruff.
 # Tests use config.settings.test (SQLite, no external services), so no
-# secrets are needed.
+# secrets are needed. Django system and missing-migration checks use the same
+# isolated settings.
 
 on:
   push:
@@ -22,10 +23,11 @@ env:
   UV_FROZEN: "1"
   UV_NO_PROGRESS: "1"
   UV_PYTHON: "3.13"
+  DJANGO_SETTINGS_MODULE: config.settings.test
 
 jobs:
   python:
-    name: Lint and tests (Python 3.13)
+    name: Lint, checks and tests (Python 3.13)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -51,5 +53,9 @@ jobs:
         run: uv run ruff check src tests
       - name: Ruff format check (locked Ruff)
         run: uv run ruff format --check src tests
+      - name: Django system checks
+        run: uv run python manage.py check
+      - name: Missing migrations
+        run: uv run python manage.py makemigrations --check --dry-run
       - name: Tests (just test)
         run: uv run pytest

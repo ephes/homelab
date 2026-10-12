@@ -26,6 +26,7 @@ dev = [
     "sphinx-autobuild",
     "sphinx-copybutton",
     "myst-parser",
+    "pyyaml>=6.0.3",
 ]
 
 [tool.ruff]
