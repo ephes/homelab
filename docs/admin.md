@@ -96,11 +96,17 @@ Replacing or clearing a logo, or deleting services individually or in bulk,
 retires the old uploaded file after the database transaction commits. The file
 is kept if any Service still references its storage name at cleanup time.
 Rolled-back admin changes preserve the old file; replacement uploads remain
-available after successful saves. Database rollback does not undo a new upload.
+available after successful saves. If the admin change-form transaction fails while
+writing an upload, saving its row, or saving related/admin records, the new upload
+is removed after rollback. Names are reserved through storage before bytes are
+copied, so cleanup removes only this save's allocation, including partial writes;
+old and shared logos remain untouched.
 
 This applies to future admin actions only, not direct model/queryset changes or
-historical orphan files. Storage cleanup failures are logged after commit and
-do not undo the saved database change; failed cleanup may require a manual retry.
+historical orphan files. It cannot compensate a rollback in a caller-owned outer
+transaction after the admin view has returned successfully. Storage cleanup failures
+are logged and never hide the original save error or undo a committed database
+change; failed cleanup may require a manual retry.
 
 ## User Management
 
