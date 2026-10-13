@@ -139,6 +139,15 @@ sandboxed opaque origin without script. Embedding logos via `<img>` is
 unaffected. Tests use a per-session temporary `MEDIA_ROOT` (see
 [Testing](testing.md#media-isolation)).
 
+Media requests return 404 when their resolved filesystem path is outside the
+resolved `MEDIA_ROOT`, including file or directory symlinks to external locations.
+Symlinks whose targets stay inside the root are supported, including conditional
+requests (304 responses).
+
+This check assumes a stable filesystem path between validation and opening the
+file; it does not prevent concurrent path replacement. Restrict filesystem write
+access to `MEDIA_ROOT` and its parent directories to trusted processes.
+
 ### Internationalization
 
 ```python
