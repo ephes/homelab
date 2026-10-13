@@ -3,7 +3,7 @@
 from contextlib import nullcontext
 
 import pytest
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.files.uploadedfile import InMemoryUploadedFile, SimpleUploadedFile
 from django.db import transaction
 from django.urls import reverse
 
@@ -103,3 +103,110 @@ def test_bulk_cleanup_failure_is_logged_and_other_files_are_removed(admin_client
     assert all(not storage.exists(name) for name in names - {broken})
     assert broken in caplog.text
     assert "Storage unavailable" in caplog.text
+
+
+@pytest.mark.parametrize("failure", ["row", "related", "write"])
+@pytest.mark.parametrize("change", [True, False])
+def test_failed_admin_upload_removes_only_new_file(admin_client, settings, tmp_path, monkeypatch, failure, change):
+    from django.contrib import admin
+    from django.db.models.signals import post_save
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    service = Service.objects.create(name="Original", logo_file=SimpleUploadedFile("same.svg", b"old logo"))
+    old_name = service.logo_file.name
+    storage = service.logo_file.storage
+    Service.objects.create(name="Shared", logo_file=old_name)
+    model_admin = admin.site._registry[Service]
+    reached = []
+
+    def fail(*args, **kwargs):
+        reached.append(True)
+        raise RuntimeError("injected failure")
+
+    if failure == "related":
+        monkeypatch.setattr(model_admin, "save_related", fail)
+    elif failure == "write":
+        original_chunks = InMemoryUploadedFile.chunks
+
+        def chunks(self, chunk_size=None):
+            yield b"partial"
+            fail()
+            yield from original_chunks(self, chunk_size)
+
+        monkeypatch.setattr(InMemoryUploadedFile, "chunks", chunks)
+    else:
+        post_save.connect(fail, sender=Service, weak=False)
+    url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
+    try:
+        with pytest.raises(RuntimeError, match="injected failure"):
+            admin_client.post(
+                url,
+                {
+                    "name": "Original" if change else "New",
+                    "order": "0",
+                    "is_active": "on",
+                    "logo_file": SimpleUploadedFile("same.svg", b"new logo"),
+                    "_save": "Save",
+                },
+            )
+    finally:
+        post_save.disconnect(fail, sender=Service)
+    assert reached
+    service.refresh_from_db()
+    assert service.logo_file.name == old_name
+    assert Service.objects.count() == 2
+    assert sorted(path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()) == [old_name]
+    with storage.open(old_name, "rb") as source:
+        assert source.read() == b"old logo"
+
+
+def test_successful_admin_add_keeps_upload(admin_client, settings, tmp_path):
+    settings.MEDIA_ROOT = str(tmp_path)
+    response = admin_client.post(
+        reverse("admin:core_service_add"),
+        {
+            "name": "Uploaded",
+            "order": "0",
+            "is_active": "on",
+            "_save": "Save",
+            "logo_file": SimpleUploadedFile("new.svg", b"new logo"),
+        },
+    )
+    assert response.status_code == 302
+    service = Service.objects.get(name="Uploaded")
+    with service.logo_file.open("rb") as source:
+        assert source.read() == b"new logo"
+
+
+def test_post_commit_error_keeps_committed_upload(admin_client, settings, tmp_path, monkeypatch):
+    from django.contrib import admin
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    model_admin = admin.site._registry[Service]
+    save_related = model_admin.save_related
+    reached = []
+
+    def fail():
+        reached.append(True)
+        raise RuntimeError("after commit")
+
+    def schedule_failure(*args, **kwargs):
+        save_related(*args, **kwargs)
+        transaction.on_commit(fail)
+
+    monkeypatch.setattr(model_admin, "save_related", schedule_failure)
+    with pytest.raises(RuntimeError, match="after commit"):
+        admin_client.post(
+            reverse("admin:core_service_add"),
+            {
+                "name": "Committed",
+                "order": "0",
+                "is_active": "on",
+                "_save": "Save",
+                "logo_file": SimpleUploadedFile("new.svg", b"new logo"),
+            },
+        )
+    assert reached
+    service = Service.objects.get(name="Committed")
+    with service.logo_file.open("rb") as source:
+        assert source.read() == b"new logo"
