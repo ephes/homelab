@@ -166,6 +166,13 @@ When adding a new service (e.g., `webmail.home.wersdörfer.de`):
 2. **Configure Traefik**: Add routing rules in `/etc/traefik/dynamic/`
 3. **No DNS changes needed** - wildcard DNS handles it automatically
 
+`add_default_services` creates missing rows and fills missing logos; it preserves
+all existing fields, including rows seeded by historical migrations. Changing an
+existing entry in the command does not update installed services. Such corrections
+need an explicit data migration guarded to preserve owner edits, or an owner admin
+edit. Historical migration ordering may differ from the current seed list; see
+`docs/services.md`.
+
 ### Infrastructure Details
 
 - **macmini server**: 192.168.178.94 (LAN) / 100.119.21.93 (Tailscale)

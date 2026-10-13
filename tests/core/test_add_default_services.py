@@ -23,25 +23,50 @@ def test_add_default_services_includes_opsgate():
     assert opsgate.order == 25
 
 
-def test_add_default_services_updates_existing_opsgate():
-    opsgate = Service.objects.create(
-        name="OpsGate",
-        description="outdated",
+def test_reseeding_preserves_owner_edits_and_adds_missing_defaults():
+    call_command("add_default_services", stdout=StringIO())
+    service = Service.objects.get(name="Fractal IPMI")
+    service.description = "Owner description"
+    service.url = "https://example.invalid/"
+    service.icon = "fas fa-question"
+    service.is_active = False
+    service.order = 99
+    service.save()
+    before = Service.objects.values().get(pk=service.pk)
+    Service.objects.get(name="Work").delete()
+
+    call_command("add_default_services", stdout=StringIO())
+
+    assert Service.objects.values().get(pk=service.pk) == before
+    assert Service.objects.get(name="Work").order == 30
+
+
+@pytest.mark.parametrize("owner_logo", [False, True])
+def test_reseeding_backfills_only_missing_logos(owner_logo):
+    service = Service.objects.create(
+        name="Fractal IPMI",
+        description="Owner",
         url="https://example.invalid/",
         icon="fas fa-question",
         is_active=False,
         order=99,
     )
+    if owner_logo:
+        service.logo_file.save("owner.svg", ContentFile(b"owner logo"), save=True)
+    old_name = service.logo_file.name
+    before = Service.objects.values("description", "url", "icon", "is_active", "order").get(pk=service.pk)
 
-    call_command("add_default_services")
+    call_command("add_default_services", stdout=StringIO())
 
-    opsgate.refresh_from_db()
-
-    assert opsgate.description == "Approval queue and audit surface for human-reviewed operator actions"
-    assert opsgate.url == "https://opsgate.home.xn--wersdrfer-47a.de/"
-    assert opsgate.icon == "fas fa-clipboard-check"
-    assert opsgate.is_active is False
-    assert opsgate.order == 25
+    service.refresh_from_db()
+    assert Service.objects.values(*before).get(pk=service.pk) == before
+    assert service.logo_file.storage.exists(service.logo_file.name)
+    if owner_logo:
+        assert service.logo_file.name == old_name
+        with service.logo_file.open("rb") as source:
+            assert source.read() == b"owner logo"
+    else:
+        assert Path(service.logo_file.name).name.startswith("fractal-ipmi")
 
 
 def test_add_default_services_includes_work_app():

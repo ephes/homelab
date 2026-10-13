@@ -132,6 +132,17 @@ just manage add_default_services
 In production the ops-control homelab deploy runs this command, so a new default tile appears
 after the next `just deploy-one homelab`.
 
+The command creates missing defaults by name and preserves all fields on existing
+services, including owner URLs, descriptions, icons, display order and active status.
+It still fills a missing built-in logo without replacing an existing logo. To reset
+a service, edit it explicitly in the admin.
+Rows created by historical data migrations are existing services too. A fresh migrated
+installation may retain older ordering (SnappyMail 6, Graphyard 23, Grafana 24),
+rather than the command's current 7, 24, 25. Rerunning the command does not reconcile
+these values. Corrections to existing defaults require an explicit, narrowly guarded
+data migration that preserves owner edits, or an owner edit in the admin; changing
+the seed list alone only affects newly created rows.
+
 The command writes all services in one database transaction. Logo files are copied to
 `MEDIA_ROOT/services/logos/` while it runs; if the run fails (a logo cannot be stored, a
 service cannot be saved), the service changes are rolled back and the logo files stored by

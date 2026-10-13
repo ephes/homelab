@@ -9,7 +9,7 @@ from apps.core.models import Service
 
 
 class Command(BaseCommand):
-    help = "Add default services to the database"
+    help = "Create missing default services and fill missing logos"
 
     def handle(self, *args, **options):
         # Path to static logos directory where we keep the source logos
@@ -271,9 +271,7 @@ class Command(BaseCommand):
                 for service_data in services:
                     logo_filename = service_data.pop("logo_filename", None)
 
-                    service, created = Service.objects.update_or_create(
-                        name=service_data["name"], defaults=service_data
-                    )
+                    service, created = Service.objects.get_or_create(name=service_data["name"], defaults=service_data)
 
                     # Add logo file if specified and file exists
                     if logo_filename:
@@ -301,7 +299,7 @@ class Command(BaseCommand):
                             service.save()
                             self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
 
-                    status = "Created" if created else "Updated"
+                    status = "Created" if created else "Kept"
                     self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
         except BaseException:
             # The transaction is rolled back at this point, so no row refers to these
