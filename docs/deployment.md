@@ -6,7 +6,8 @@ The homelab deployment consists of multiple components that can be deployed toge
 - **Django Application** - The main homelab dashboard
 - **Traefik** - Reverse proxy with SSL and basic authentication
 - **Pi-hole** - DNS server for local network (optional)
-- **Dynamic DNS** - Automatic IP updates for home.wersdörfer.de (optional)
+
+Dynamic DNS for home.wersdörfer.de is not deployed from here; ops-control manages it (see below).
 
 ## Quick Deploy
 
@@ -19,7 +20,6 @@ just deploy        # Django app only (default)
 just deploy-app    # Django app only
 just deploy-traefik  # Traefik proxy
 just deploy-pihole   # Pi-hole DNS
-just deploy-dyndns   # Dynamic DNS
 ```
 
 ## Initial Setup
@@ -58,9 +58,6 @@ Set these values:
 ---
 # Django secret key
 django_secret_key: "generate-a-long-random-key"
-
-# Gandi API token for Dynamic DNS
-gandi_api_token: "your-gandi-api-token"
 
 # Traefik basic auth password
 traefik_basic_auth_password: "your-secure-password"
@@ -125,12 +122,13 @@ just deploy-traefik
   - Tailscale IP resolution for local services
   - Custom DNS entries for *.home.wersdörfer.de
 
-### Dynamic DNS (Optional)
+### Dynamic DNS
 
-- **Provider**: Gandi
-- **Domain**: home.wersdörfer.de
-- **Update interval**: Every 5 minutes
-- **Service**: `ddns-home.timer`
+Not part of this repository any more. The home address
+(`home.wersdörfer.de`, `*.home.wersdörfer.de`) is updated by the `ddns-update`
+service that ops-control deploys (`playbooks/deploy-dns.yml`, RFC 2136 to the
+self-hosted nameservers). The former Gandi updater (`deploy-dyndns.yml`,
+`ddns-home.timer`) was removed.
 
 ## Management Commands
 
@@ -145,10 +143,6 @@ sudo journalctl -u homelab -f
 sudo systemctl status traefik
 sudo systemctl restart traefik
 sudo journalctl -u traefik -f
-
-# Dynamic DNS
-sudo systemctl status ddns-home.timer
-sudo systemctl list-timers
 ```
 
 ### Database Management
