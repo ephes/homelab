@@ -48,14 +48,10 @@ def test_settings_consume_the_expected_core_variables():
     assert "DJANGO_DEBUG" not in consumed_variables()
 
 
-@pytest.mark.parametrize(
-    "template",
-    [".env.example", "deploy/templates/env.template.j2"],
-)
-def test_environment_template_only_names_variables_the_settings_read(template):
-    names = set(assignments((REPO_ROOT / template).read_text()))
+def test_environment_template_only_names_variables_the_settings_read():
+    names = set(assignments((REPO_ROOT / ".env.example").read_text()))
 
-    assert names, template
+    assert names
     assert names - consumed_variables() == set()
 
 

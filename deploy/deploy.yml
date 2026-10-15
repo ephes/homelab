@@ -1,5 +1,0 @@
----
-# Default deployment - just the app
-# This deploys only the homelab Django application
-
-- import_playbook: deploy-app.yml

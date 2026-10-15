@@ -120,7 +120,10 @@ After building, documentation is available at `docs/_build/html/index.html`
 
 ## Deployment
 
-The application is deployed to macmini.fritz.box (home.wersdoerfer.de) using Ansible.
+The application is deployed to macmini (home.wersdoerfer.de) by
+[ops-control](https://github.com/ephes/ops-control) with the ops-library
+`homelab_deploy` role. Secrets live in ops-control (SOPS); this repository has
+no deployment configuration. See [docs/deployment.md](docs/deployment.md).
 
 To deploy:
 ```bash
@@ -136,7 +139,6 @@ homelab/
 │   └── apps/             # Django applications
 │       └── core/         # Core application
 ├── tests/                # Test files
-├── deploy/               # Deployment configuration
 ├── docs/                 # Documentation
 ├── manage.py             # Django management script
 ├── justfile              # Command runner

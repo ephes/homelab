@@ -1,102 +1,45 @@
 # Traefik Basic Authentication
 
-This document describes the basic authentication setup for the homelab Traefik reverse proxy.
+Traefik and its configuration for homelab are managed by ops-control (see
+[deployment](deployment.md)). The ops-library `homelab_deploy` role renders
+`/etc/traefik/dynamic/homelab.yml` on macmini.
 
-## Overview
+## How it works
 
-The Traefik configuration implements basic authentication that:
-- **Requires authentication** for all access to the homelab site
-- **Applies to all users** including those on Tailscale VPN
-- **Uses bcrypt** for secure password hashing
+The config uses the dual router pattern:
 
-## Configuration Files
+- **Internal router** (higher priority): requests from LAN and Tailscale ranges
+  reach the app without basic auth.
+- **External router**: every other request needs the shared `*.home`
+  basic-auth credentials (user `admin`, bcrypt hash in the config).
 
-### `deploy/vars.yml`
-```yaml
-# Basic auth configuration
-traefik_basic_auth_user: "admin"
-# Password is stored in secrets.yml (encrypted with ansible-vault)
+The same credentials protect the other `*.home` services on macmini.
 
-# Tailscale IP range (reserved for future conditional auth)
-tailscale_ip_range: "100.64.0.0/10"
-```
+## Credentials and rotation
 
-### `deploy/secrets.yml` (Encrypted)
-```yaml
-traefik_basic_auth_password: "YOUR_SECURE_PASSWORD"
-```
-
-### `deploy/templates/homelab.traefik.yml.j2`
-Contains the router configuration with:
-- `basic-auth` middleware for access control
-- Security headers and compression
-
-## Setup Instructions
-
-### 1. Set Your Password
-
-Edit the encrypted secrets file:
-```bash
-cd deploy
-ansible-vault edit secrets.yml
-```
-
-Replace `CHANGE_ME_SECURE_PASSWORD_123` with your actual password.
-
-### 2. Deploy the Configuration
+The password is stored in ops-control `secrets/prod/traefik.yml`
+(`basic_auth_password`, SOPS-encrypted). To rotate it, set a new value there
+and run, in ops-control:
 
 ```bash
-ansible-playbook -i inventory/hosts.yml deploy-traefik.yml --ask-vault-pass
+just rotate-traefik-basic-auth
 ```
 
-### 3. Test the Setup
+That refreshes the hash in every deployed service config that uses the shared
+password. ops-control `docs/TRAEFIK_SECURITY.md` lists the covered services.
+
+## Testing
 
 ```bash
-# Should return 401 Unauthorized
-curl -I https://home.wersdörfer.de
+# Public request without credentials: 401
+curl -I https://home.xn--wersdrfer-47a.de/
 
-# Should return 200 OK with valid credentials
-curl -I -u admin:YOUR_PASSWORD https://home.wersdörfer.de
+# With credentials: 200 (enter the password when curl prompts for it)
+curl -I -u admin https://home.xn--wersdrfer-47a.de/
+
+# Deployed configuration
+ssh root@macmini.tailde2ec.ts.net 'cat /etc/traefik/dynamic/homelab.yml'
 ```
-
-## Security Considerations
-
-1. **Password Storage**: Passwords are encrypted using Ansible Vault
-2. **Password Hashing**: Uses bcrypt hashing (most secure option for basic auth)
-3. **HTTPS Only**: Authentication only happens over encrypted connections
-4. **Universal Protection**: All access requires authentication
-
-## Troubleshooting
-
-### Authentication Not Working
-- Check if the password was correctly set in `secrets.yml`
-- Verify the Traefik configuration was deployed: `ssh macmini.fritz.box 'cat /etc/traefik/dynamic/homelab.yml'`
-- Check Traefik logs: `ssh macmini.fritz.box 'sudo journalctl -u traefik -f'`
-
-### Testing Authentication
-Use the provided test script:
-```bash
-./deploy/test-auth.sh
-```
-
-### Viewing Current Configuration
-```bash
-# On the macmini server
-sudo cat /etc/traefik/dynamic/homelab.yml
-```
-
-## Known Limitations
-
-### Conditional Authentication
-The initial plan to bypass authentication for Tailscale IPs while requiring it for external IPs encountered Traefik limitations:
-- The `ClientIP` matcher in router rules returns 403 Forbidden for non-matching IPs rather than falling through to other routers
-- Traefik doesn't support OR logic between routers for conditional middleware application
-
-### Future Options for Conditional Auth
-If you want to implement Tailscale bypass in the future:
-1. **ForwardAuth Service**: Create a small service that checks IPs and returns 200 for Tailscale, 401 for others
-2. **Traefik Plugin**: Use or develop a plugin for conditional authentication
-3. **Application Level**: Handle auth bypass in your Django application based on client IP
 
 ### Client IP on the Connection Info page
 `/connection-info/` shows the client address and a Tailscale/Local/Public badge. The app runs behind a
@@ -105,10 +48,3 @@ connection it received, and falls back to `REMOTE_ADDR` when the header is missi
 IP address. Entries further left are sent by the client and can be spoofed, so they are ignored. If another
 proxy is ever added in front of Traefik, this rule must change. The page is for display only; any future
 application-level auth bypass must likewise trust only the proxy-appended entry.
-
-## Changing Credentials
-
-To change the username or password:
-1. Update `traefik_basic_auth_user` in `deploy/vars.yml` for username changes
-2. Update `traefik_basic_auth_password` in `deploy/secrets.yml` for password changes
-3. Redeploy with `ansible-playbook -i inventory/hosts.yml deploy-traefik.yml --ask-vault-pass`

@@ -40,15 +40,6 @@ homelab/
 │   ├── conftest.py
 │   └── core/
 │       └── test_views.py
-├── deploy/                   # Deployment configuration
-│   ├── ansible.cfg
-│   ├── deploy.yml
-│   ├── host_vars/
-│   │   └── production.yml
-│   ├── inventory/
-│   │   └── hosts.yml
-│   ├── templates/
-│   └── vars.yml
 ├── manage.py                 # Django management script
 ├── justfile                  # Development commands
 ├── pyproject.toml           # Project dependencies
@@ -134,7 +125,7 @@ The justfile should provide these commands:
 
 - Use django-environ for secure environment variable handling
 - SQLite database should be excluded from version control
-- Production secrets managed through Ansible vault
+- Production secrets live in ops-control (SOPS); never commit secrets or vault password files here
 - HTTPS enforced in production
 - Secure headers via Django security middleware
 

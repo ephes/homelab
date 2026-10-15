@@ -1,5 +1,10 @@
 # Split-DNS Final Implementation Guide
 
+> **Historical.** This page records how split DNS was first set up with the
+> legacy playbooks in this repository's former `deploy/` folder, which has been
+> removed. Unbound on macmini is now managed by ops-control (`just deploy-one dns`,
+> ops-library `dns_deploy`); the Pi-hole steps no longer apply.
+
 ## ✅ Status: FULLY OPERATIONAL
 
 Successfully implemented split-DNS with Unbound and Pi-hole for the homelab infrastructure.
