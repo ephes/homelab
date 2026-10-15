@@ -19,7 +19,7 @@ src/
 ├── apps/           # Applications
 │   └── core/       # Main app
 tests/              # Test files
-deploy/             # Ansible deployment
+docs/               # Documentation
 ```
 
 ## Common Tasks

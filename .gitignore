@@ -52,6 +52,15 @@ cache/
 # Local data
 backups/
 logs/
-# Ansible vault password
-deploy/.vault_password
+# Vault/secret password files: never commit these (deployment secrets live in ops-control SOPS)
+.vault_password
+.vault_pass
+.vault-password
+.vault-pass
+*.vault_password
+*.vault_pass
+vault_password*
+vault_pass*
+vault-password*
+vault-pass*
 docs/_build/
