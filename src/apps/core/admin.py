@@ -1,23 +1,62 @@
 import logging
 
+from django import forms
 from django.contrib import admin
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
 from django.db import router, transaction
+from django.db.models import F
 
 from .models import Service
 
 logger = logging.getLogger("homelab")
 
 
+class ServiceAdminForm(forms.ModelForm):
+    original_revision = forms.DateTimeField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.instance._state.adding:
+            self.initial["original_revision"] = self.instance.updated_at.isoformat()
+
+    def clean(self):
+        cleaned = super().clean()
+        if not self.instance._state.adding and not self.errors:
+            using = router.db_for_write(Service, instance=self.instance)
+            revision = cleaned.get("original_revision")
+            # Both admin entry points keep validation and save in one atomic
+            # block. A conditional no-op UPDATE checks the revision and takes a
+            # write lock (including SQLite) until that block ends, before uploads.
+            if revision is None or not Service.objects.using(using).filter(
+                pk=self.instance.pk, updated_at=revision
+            ).update(updated_at=F("updated_at")):
+                raise forms.ValidationError(
+                    "This service changed since you opened the form. Reload it and reapply your changes."
+                )
+        return cleaned
+
+
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
+    form = ServiceAdminForm
+    change_list_template = "admin/core/service/change_list.html"
     list_display = ["name", "url", "is_active", "order", "created_at"]
     list_filter = ["is_active", "created_at"]
     search_fields = ["name", "description"]
     ordering = ["order", "name"]
     list_editable = ["order", "is_active"]
-    fields = ["name", "description", "url", "icon", "logo_file", "is_active", "order"]
+    fields = ["name", "description", "url", "icon", "logo_file", "is_active", "order", "original_revision"]
+
+    def get_changelist_form(self, request, **kwargs):
+        return super().get_changelist_form(request, form=ServiceAdminForm, **kwargs)
+
+    def changelist_view(self, request, extra_context=None):
+        # Django otherwise validates list-editable forms before its save block.
+        if request.method != "POST" or "_save" not in request.POST:
+            return super().changelist_view(request, extra_context)
+        with transaction.atomic(using=router.db_for_write(self.model)):
+            return super().changelist_view(request, extra_context)
 
     def _retire_logos(self, names, using):
         storage = self.model._meta.get_field("logo_file").storage

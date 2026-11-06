@@ -31,7 +31,13 @@ def test_admin_logo_retirement(admin_client, action, outcome):
 
     with nullcontext() if outcome == "commit" else transaction.atomic():
         if action in {"replace", "clear"}:
-            data = {"name": service.name, "order": "0", "is_active": "on", "_save": "Save"}
+            data = {
+                "name": service.name,
+                "order": "0",
+                "is_active": "on",
+                "_save": "Save",
+                "original_revision": service.updated_at.isoformat(),
+            }
             if action == "replace":
                 data["logo_file"] = SimpleUploadedFile("new.svg", b"new logo")
             else:
@@ -143,6 +149,7 @@ def test_failed_admin_upload_removes_only_new_file(admin_client, settings, tmp_p
                 url,
                 {
                     "name": "Original" if change else "New",
+                    "original_revision": service.updated_at.isoformat(),
                     "order": "0",
                     "is_active": "on",
                     "logo_file": SimpleUploadedFile("same.svg", b"new logo"),
