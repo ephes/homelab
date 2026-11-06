@@ -59,3 +59,25 @@ jobs:
         run: uv run python manage.py makemigrations --check --dry-run
       - name: Tests (just test)
         run: uv run pytest
+
+  audit:
+    name: Audit locked Python dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.23"
+      - name: Export locked runtime and all development groups
+        run: uv export --frozen --all-groups --no-hashes --no-emit-project --output-file requirements-audit.txt
+      - name: Audit exported requirements
+        run: uvx --from pip-audit==2.10.1 pip-audit --disable-pip --no-deps -r requirements-audit.txt

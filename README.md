@@ -84,8 +84,8 @@ Run tests with coverage:
 just coverage
 ```
 
-CI requires lint, format, tests, Django system checks and a missing-migration
-check. Run the isolated management commands in
+CI requires lint, format, tests, Django system checks, a missing-migration
+check and a frozen runtime/development dependency audit. Run the isolated management commands in
 [the testing guide](docs/testing.md#required-django-gates) before submitting changes.
 
 ## Documentation

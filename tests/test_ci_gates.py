@@ -63,3 +63,20 @@ def test_workflow_requires_both_gates():
     commands = [step.get("run") for step in workflow["jobs"]["python"]["steps"]]
     assert "uv run python manage.py check" in commands
     assert "uv run python manage.py makemigrations --check --dry-run" in commands
+
+
+def test_workflow_audits_frozen_runtime_and_development_graph():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    assert workflow["permissions"] == {"contents": "read"}
+    job = workflow["jobs"]["audit"]
+    assert 0 < job["timeout-minutes"] <= 15
+    assert "permissions" not in job  # Inherit the read-only workflow token.
+    steps = job["steps"]
+    commands = [step["run"] for step in steps if "run" in step]
+    # Separate steps ensure a failed export stops the job before auditing.
+    assert commands == [
+        "uv export --frozen --all-groups --no-hashes --no-emit-project --output-file requirements-audit.txt",
+        "uvx --from pip-audit==2.10.1 pip-audit --disable-pip --no-deps -r requirements-audit.txt",
+    ]
+    assert not any(step.get("continue-on-error") or step.get("if") for step in steps)
+    assert not job.get("continue-on-error")
