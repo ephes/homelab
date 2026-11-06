@@ -78,6 +78,17 @@ Features:
 
 **Quick Edit**: In the list view, some fields (order, is_active) can be edited inline.
 
+Change forms and quick edits carry the revision from when the page was opened.
+If another save changed the service, submission shows a conflict with your entered
+values retained; it does not overwrite the newer row or store a replacement logo.
+Reload the page, compare the current values, and reapply your changes (select an
+upload again if needed). A stale row in a quick-edit batch prevents the whole batch
+from saving. Missing revisions also require a reload, including pages opened before
+this feature was deployed. The revision is checked under a database write lock
+held through the save. This protects admin saves against writers that advance
+`updated_at` (normal model saves); direct queryset updates must update that timestamp
+too to participate in conflict detection.
+
 ### Deleting Services
 
 **Single deletion**:
