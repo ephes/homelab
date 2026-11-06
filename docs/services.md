@@ -154,6 +154,14 @@ Each logo name is first reserved through the storage, which picks a free name an
 file atomically; only names reserved by the failing run are removed, never a file another
 upload created in the meantime.
 
+A callback can fail after the database commit has already succeeded. The command
+still reports that original exception, but preserves every newly allocated logo
+referenced by committed rows on the write database. Cleanup deletes only verified
+unreferenced allocations; if the reference check or deletion fails, it reports the
+cleanup problem without replacing the original exception. A retry preserves the
+committed services and logos. This command change takes effect when the updated
+command is next run; no automatic rerun is required.
+
 ## Icon Selection Guide
 
 ### Icon Categories

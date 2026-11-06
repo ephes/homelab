@@ -244,7 +244,7 @@ def test_failure_after_commit_keeps_the_committed_logos(logo_dir, monkeypatch):
     def fail(*args, **kwargs):
         raise RuntimeError("late failure")
 
-    monkeypatch.setattr(Service.objects, "count", fail)
+    monkeypatch.setattr(type(Service.objects.all()), "count", fail)
     stderr = StringIO()
 
     # The final count runs outside the transaction: the services are committed and keep their logos.
@@ -286,3 +286,43 @@ def test_cleanup_failure_does_not_hide_the_original_error(logo_dir, monkeypatch)
         call_command("add_default_services", stdout=StringIO(), stderr=stderr)
 
     assert stderr.getvalue().count("Could not remove logo file") == 2
+
+
+@pytest.mark.django_db(transaction=True)
+def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatch):
+    from django.db import transaction
+    from django.db.models.signals import post_save
+
+    scheduled = []
+    expected = {}
+
+    def fail():
+        raise RuntimeError("synthetic callback failed after commit")
+
+    def schedule(sender, instance, using, **kwargs):
+        if instance.logo_file:
+            with instance.logo_file.open("rb") as source:
+                expected[instance.logo_file.name] = source.read()
+            if not scheduled:
+                scheduled.append(using)
+                transaction.on_commit(fail, using=using)
+
+    # Synthetic logo bytes only; no deployed media or external services.
+    monkeypatch.setattr(File, "chunks", lambda self, chunk_size=None: iter([b"synthetic logo"]))
+    post_save.connect(schedule, sender=Service, weak=False)
+    stderr = StringIO()
+    try:
+        with pytest.raises(RuntimeError, match="synthetic callback failed after commit"):
+            call_command("add_default_services", stdout=StringIO(), stderr=stderr)
+    finally:
+        post_save.disconnect(schedule, sender=Service)
+
+    assert scheduled == ["default"]
+    assert expected
+    assert Service.objects.count() > 0
+    assert set(Service.objects.exclude(logo_file="").values_list("logo_file", flat=True)) == set(expected)
+    storage = Service._meta.get_field("logo_file").storage
+    for name, content in expected.items():
+        with storage.open(name, "rb") as source:
+            assert source.read() == content == b"synthetic logo"
+    assert "Removed logo file" not in stderr.getvalue()

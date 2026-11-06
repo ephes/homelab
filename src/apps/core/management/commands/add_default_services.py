@@ -3,7 +3,7 @@ from pathlib import Path
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import router, transaction
 
 from apps.core.models import Service
 
@@ -266,12 +266,15 @@ class Command(BaseCommand):
         # run stores so a failed run can take them back out again.
         stored_logo_names: list[str] = []
         logo_storage = Service._meta.get_field("logo_file").storage
+        using = router.db_for_write(Service)
         try:
-            with transaction.atomic():
+            with transaction.atomic(using=using):
                 for service_data in services:
                     logo_filename = service_data.pop("logo_filename", None)
 
-                    service, created = Service.objects.get_or_create(name=service_data["name"], defaults=service_data)
+                    service, created = Service.objects.using(using).get_or_create(
+                        name=service_data["name"], defaults=service_data
+                    )
 
                     # Add logo file if specified and file exists
                     if logo_filename:
@@ -296,23 +299,25 @@ class Command(BaseCommand):
                             # The row is saved separately, so a failing row save cannot
                             # hide the stored file either.
                             service.logo_file.name = reserved_name
-                            service.save()
+                            service.save(using=using)
                             self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
 
                     status = "Created" if created else "Kept"
                     self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
         except BaseException:
-            # The transaction is rolled back at this point, so no row refers to these
-            # files. Logos that existed before this run are not in the list.
-            self._remove_stored_logos(logo_storage, stored_logo_names)
+            # An on_commit callback can fail after rows have committed. Only
+            # compensate allocations verified unreferenced on the write DB.
+            self._remove_stored_logos(logo_storage, stored_logo_names, using)
             raise
 
-        total = Service.objects.count()
+        total = Service.objects.using(using).count()
         self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
 
-    def _remove_stored_logos(self, storage, names: list[str]) -> None:
+    def _remove_stored_logos(self, storage, names: list[str], using: str) -> None:
         for name in names:
             try:
+                if Service.objects.using(using).filter(logo_file=name).exists():
+                    continue
                 storage.delete(name)
             except Exception as error:  # noqa: BLE001 - keep cleaning up, the original error is re-raised
                 self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))
