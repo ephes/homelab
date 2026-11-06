@@ -64,3 +64,6 @@ vault_pass*
 vault-password*
 vault-pass*
 docs/_build/
+
+# Frozen dependency audit export
+/requirements-audit.txt

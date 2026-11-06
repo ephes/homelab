@@ -439,3 +439,25 @@ enabled for management commands; pytest's `--no-migrations` option still bypasse
 migrations when constructing its test database. `tests/test_ci_gates.py` verifies
 the current source passes and intentional model/URL faults fail in disposable
 source copies. Production `check --deploy` is a separate operator check.
+
+### Locked Python dependency audit
+
+CI's separate, ten-minute audit job exports the frozen runtime graph and all
+development groups (currently `dev`, including docs and pre-commit tooling).
+Run the identical commands locally from the repository root:
+
+```bash
+uv export --frozen --all-groups --no-hashes --no-emit-project --output-file requirements-audit.txt
+uvx --from pip-audit==2.10.1 pip-audit --disable-pip --no-deps -r requirements-audit.txt
+```
+
+Run the second command only if the export succeeds. CI uses separate steps so
+an export error stops the job; advisory findings and auditor/network errors
+also fail it. The project itself is omitted because it is not a registry
+package. `--no-deps` audits the already resolved export without installing or
+resolving its packages. Requirements markers are evaluated for the audit
+interpreter/platform (CI: Python 3.13 on Linux); this is not an audit of every
+possible platform. The tool's own isolated environment and separately installed
+pre-commit hook environments are outside the exported graph. A clean result
+means no known advisories reported for the audited graph, not proof that every
+usage is safe.
