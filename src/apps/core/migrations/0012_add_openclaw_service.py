@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_openclaw(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="OpenClaw",
         defaults={
             "description": "AI automation gateway and web dashboard",
@@ -16,8 +16,8 @@ def add_openclaw(apps, schema_editor):
 
 
 def remove_openclaw(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name="OpenClaw").delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

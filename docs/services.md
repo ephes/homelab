@@ -43,6 +43,21 @@ class Service(models.Model):
 | is_active | Boolean | Yes | Show/hide on dashboard |
 | order | Integer | Yes | Sort position (default: 0) |
 
+## Historical service seeds
+
+Service seed migrations insert missing named services in the database selected
+by the migration connection. Existing rows keep their owner-managed fields,
+including URLs, status, ordering and logo references. Reversing a seed migration
+retains both existing and newly seeded services: the original migrations did not
+record which rows they created, so deletion cannot safely infer ownership.
+Remove unwanted services explicitly through the admin interface.
+
+This policy applies when these historical migrations are executed in the future;
+editing them neither reruns already-applied migrations nor restores rows or values
+changed by an older execution. The historical `0011_update_open_webui_service`
+remains an intentional URL/icon/status update, now scoped to its migration
+connection, with its existing no-op reverse. No new schema migration is needed.
+
 ## Managing via Admin Interface
 
 ### Adding Services

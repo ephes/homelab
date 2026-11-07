@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_cms_services(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Family Blog CMS",
         defaults={
             "description": "Wagtail admin for the family blog",
@@ -13,7 +13,7 @@ def add_cms_services(apps, schema_editor):
             "order": 15,
         },
     )
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Python Podcast CMS",
         defaults={
             "description": "Wagtail admin for python-podcast.de",
@@ -26,8 +26,8 @@ def add_cms_services(apps, schema_editor):
 
 
 def remove_cms_services(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name__in=["Family Blog CMS", "Python Podcast CMS"]).delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

@@ -32,16 +32,15 @@ def add_default_services(apps, schema_editor):
     ]
     
     for service_data in services:
-        Service.objects.get_or_create(
+        Service.objects.using(schema_editor.connection.alias).get_or_create(
             name=service_data["name"],
             defaults=service_data
         )
 
 
 def remove_default_services(apps, schema_editor):
-    """Remove default services (for migration reversal)."""
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name__in=["Home Assistant", "Nyxmon", "Unifi"]).delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

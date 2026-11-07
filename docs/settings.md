@@ -337,10 +337,12 @@ CI runs `manage.py check` and `makemigrations --check --dry-run` with
 ```bash
 uv run pytest database_tests/test_admin_contention.py --create-db
 uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
 ```
 
 They use fresh temporary file-backed databases and synthetic uploads; the second
-explicitly executes the committed migration graph. See
+explicitly executes the committed migration graph. The seed lane adds a second
+independent SQLite alias to verify routing and conservative rollback. See
 [Testing](testing.md#real-database-lanes) for details.
 
 ## Environment Variables

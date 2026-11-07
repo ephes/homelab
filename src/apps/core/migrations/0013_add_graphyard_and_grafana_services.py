@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_graphyard_and_grafana(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Graphyard",
         defaults={
             "description": "Metrics catalog and operator interface for the homelab metrics platform",
@@ -13,7 +13,7 @@ def add_graphyard_and_grafana(apps, schema_editor):
             "order": 23,
         },
     )
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Grafana",
         defaults={
             "description": "Time-series dashboards and drill-down views for Graphyard metrics",
@@ -26,8 +26,8 @@ def add_graphyard_and_grafana(apps, schema_editor):
 
 
 def remove_graphyard_and_grafana(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name__in=["Graphyard", "Grafana"]).delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

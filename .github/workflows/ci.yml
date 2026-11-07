@@ -61,6 +61,8 @@ jobs:
         run: uv run pytest database_tests/test_admin_contention.py --create-db
       - name: Applied migrations on a fresh database
         run: uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+      - name: Seed migration routing and ownership
+        run: uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
       - name: Tests (just test)
         run: uv run pytest
 

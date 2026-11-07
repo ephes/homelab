@@ -85,7 +85,7 @@ just coverage
 ```
 
 CI requires lint, format, tests, real SQLite admin contention, fresh applied
-migrations, Django system checks, a missing-migration check and a frozen
+migrations, seed migration routing/ownership on two databases, Django system checks, a missing-migration check and a frozen
 runtime/development dependency audit. Run the isolated management commands in
 [the testing guide](docs/testing.md#required-django-gates) before submitting changes.
 
