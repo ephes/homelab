@@ -95,6 +95,10 @@ DATABASES = {
     "default": env.db(default="sqlite:///db.sqlite3"),
 }
 
+# Acquire SQLite write locks at transaction entry, before admin validation reads.
+if DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+    DATABASES["default"].setdefault("OPTIONS", {})["transaction_mode"] = "IMMEDIATE"
+
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
 AUTH_PASSWORD_VALIDATORS = [

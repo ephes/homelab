@@ -50,13 +50,17 @@ jobs:
       - name: Lint (just lint)
         run: uvx --from pre-commit==4.6.2 pre-commit run --all-files --show-diff-on-failure
       - name: Ruff check (locked Ruff)
-        run: uv run ruff check src tests
+        run: uv run ruff check src tests database_tests
       - name: Ruff format check (locked Ruff)
-        run: uv run ruff format --check src tests
+        run: uv run ruff format --check src tests database_tests
       - name: Django system checks
         run: uv run python manage.py check
       - name: Missing migrations
         run: uv run python manage.py makemigrations --check --dry-run
+      - name: Real SQLite admin contention
+        run: uv run pytest database_tests/test_admin_contention.py --create-db
+      - name: Applied migrations on a fresh database
+        run: uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
       - name: Tests (just test)
         run: uv run pytest
 

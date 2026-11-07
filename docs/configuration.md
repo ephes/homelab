@@ -92,3 +92,13 @@ Run security check:
 ```bash
 just manage check --deploy
 ```
+
+
+## SQLite transactions
+
+SQLite connections require Django 5.1+ and use Django's `OPTIONS["transaction_mode"] = "IMMEDIATE"`.
+Atomic blocks acquire their write lock before admin validation reads, allowing
+overlapping writers to wait and then detect a stale revision. This applies to
+SQLite only; other database backends keep their existing options. Keep atomic
+blocks short: SQLite still allows only one writer, and its normal lock timeout
+can be exhausted. Test settings use the same transaction mode.

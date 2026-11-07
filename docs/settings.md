@@ -93,6 +93,8 @@ MIDDLEWARE = [
 DATABASES = {
     "default": env.db(default="sqlite:///db.sqlite3"),
 }
+if DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+    DATABASES["default"].setdefault("OPTIONS", {})["transaction_mode"] = "IMMEDIATE"
 ```
 
 Environment variable format:
@@ -305,7 +307,8 @@ Optimized settings for testing (from `test.py`).
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",  # In-memory database for speed
+        "NAME": ":memory:",  # In-memory database for the fast suite
+        "OPTIONS": {"transaction_mode": "IMMEDIATE"},
     }
 }
 ```
@@ -321,12 +324,24 @@ PASSWORD_HASHERS = [
 ### Migration Checks
 
 Test settings leave committed migration modules enabled so management commands
-can detect model changes without migrations. Pytest skips migration execution
-through `--no-migrations` in `pytest.ini` when building its test database.
+can detect model changes without migrations. The ordinary pytest suite skips
+migration execution through `--no-migrations` in `pytest.ini` when building its
+test database. SQLite uses Django 5.1+'s `IMMEDIATE` transaction mode so admin
+writes acquire their lock before validation reads. The declared Django minimum
+and frozen dependency both support this option.
 
 CI runs `manage.py check` and `makemigrations --check --dry-run` with
 `DJANGO_SETTINGS_MODULE=config.settings.test`; see the required gates in
-[Testing](testing.md#required-django-gates).
+[Testing](testing.md#required-django-gates). CI also requires these database lanes:
+
+```bash
+uv run pytest database_tests/test_admin_contention.py --create-db
+uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+```
+
+They use fresh temporary file-backed databases and synthetic uploads; the second
+explicitly executes the committed migration graph. See
+[Testing](testing.md#real-database-lanes) for details.
 
 ## Environment Variables
 
