@@ -89,6 +89,13 @@ held through the save. This protects admin saves against writers that advance
 `updated_at` (normal model saves); direct queryset updates must update that timestamp
 too to participate in conflict detection.
 
+SQLite uses `IMMEDIATE` transactions so overlapping admin writes wait at
+transaction entry, before reading the service. After the winner commits, the
+other request validates its stale revision and shows a conflict. The normal
+SQLite lock timeout still bounds the wait; exceptionally long transactions can
+exhaust it. Real file-backed concurrent request tests cover change forms,
+replacement logo storage, and all-or-nothing quick-edit batches in CI.
+
 ### Deleting Services
 
 **Single deletion**:

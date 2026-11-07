@@ -109,3 +109,14 @@ def test_base_settings_never_enable_debug_from_the_environment(tmp_path):
     settings = load_settings(root, settings_module_bootstrap("config.settings.base"), {"DEBUG": "True"})
 
     assert settings["DEBUG"] is False
+
+
+@pytest.mark.parametrize("module", ["base", "local", "production", "test"])
+def test_sqlite_transactions_wait_before_admin_reads(tmp_path, module):
+    root = make_project_root(tmp_path)
+    settings = load_settings(
+        root,
+        settings_module_bootstrap(f"config.settings.{module}"),
+        {"DJANGO_SECRET_KEY": "synthetic-contract-key", "DATABASE_URL": "sqlite:///synthetic.sqlite3"},
+    )
+    assert settings["DATABASES"]["default"]["OPTIONS"]["transaction_mode"] == "IMMEDIATE"

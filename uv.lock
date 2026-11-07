@@ -468,7 +468,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "django", specifier = ">=5.0" },
+    { name = "django", specifier = ">=5.1" },
     { name = "django-environ" },
     { name = "granian" },
     { name = "gunicorn" },

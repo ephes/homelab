@@ -5,9 +5,12 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 import yaml
+from django.db.migrations.loader import MigrationLoader
+from django.test import override_settings
 
 from tests.config.isolation import make_project_root
 
@@ -21,12 +24,21 @@ def checkout(tmp_path):
     return root
 
 
-def run_gate(checkout, *args):
-    env = {key: value for key, value in os.environ.items() if not key.startswith("DJANGO_")}
+def isolated_environment():
+    env = {key: value for key, value in os.environ.items() if not key.startswith(("DJANGO_", "PYTEST_"))}
     env.pop("PYTHONPATH", None)
     env["DJANGO_SETTINGS_MODULE"] = "config.settings.test"
+    return env
+
+
+def run_gate(checkout, *args):
     return subprocess.run(
-        [sys.executable, "manage.py", *args], cwd=checkout, env=env, text=True, capture_output=True, timeout=30
+        [sys.executable, "manage.py", *args],
+        cwd=checkout,
+        env=isolated_environment(),
+        text=True,
+        capture_output=True,
+        timeout=30,
     )
 
 
@@ -80,3 +92,46 @@ def test_workflow_audits_frozen_runtime_and_development_graph():
     ]
     assert not any(step.get("continue-on-error") or step.get("if") for step in steps)
     assert not job.get("continue-on-error")
+
+
+def test_failing_committed_operation_breaks_applied_migration_lane(checkout):
+    shutil.copytree(ROOT / "database_tests", checkout / "database_tests", ignore=shutil.ignore_patterns("__pycache__"))
+    (checkout / "tests").mkdir()
+    for name in ["__init__.py", "conftest.py"]:
+        shutil.copy2(ROOT / "tests" / name, checkout / "tests" / name)
+    shutil.copy2(ROOT / "pytest.ini", checkout)
+    with override_settings(MIGRATION_MODULES={}):
+        leaves = MigrationLoader(None, ignore_no_migrations=True).graph.leaf_nodes("core")
+    assert leaves
+    migration = checkout / "src/apps/core/migrations" / f"probe_{uuid4().hex}.py"
+    migration.write_text(
+        "from django.db import migrations\n"
+        "def fail(apps, schema_editor):\n"
+        "    raise RuntimeError('synthetic migration operation failed')\n"
+        "class Migration(migrations.Migration):\n"
+        f"    dependencies = {leaves!r}\n"
+        "    operations = [migrations.RunPython(fail)]\n"
+    )
+    drift = run_gate(checkout, "makemigrations", "--check", "--dry-run")
+    assert drift.returncode == 0, drift.stdout + drift.stderr
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "database_tests/test_applied_migrations.py", "--migrations", "--create-db"],
+        cwd=checkout,
+        env=isolated_environment(),
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "synthetic migration operation failed" in result.stdout
+
+
+def test_workflow_requires_executed_database_lanes():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
+    steps = workflow["jobs"]["python"]["steps"]
+    for command in [
+        "uv run pytest database_tests/test_admin_contention.py --create-db",
+        "uv run pytest database_tests/test_applied_migrations.py --migrations --create-db",
+    ]:
+        step = next(step for step in steps if step.get("run") == command)
+        assert not step.get("if") and not step.get("continue-on-error")

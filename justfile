@@ -17,6 +17,14 @@ dev:
 test:
     uv run pytest
 
+# Run real file-backed SQLite admin contention tests
+test-contention:
+    uv run pytest database_tests/test_admin_contention.py --create-db
+
+# Apply every committed migration to a fresh isolated database
+test-migrations:
+    uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+
 # Run specific test
 test-one TEST_PATH:
     uv run pytest {{TEST_PATH}} -v
@@ -31,8 +39,8 @@ lint:
 
 # Format code with ruff
 format:
-    uv run ruff format src tests
-    uv run ruff check --fix src tests
+    uv run ruff format src tests database_tests
+    uv run ruff check --fix src tests database_tests
 
 # Django management commands
 manage *ARGS:

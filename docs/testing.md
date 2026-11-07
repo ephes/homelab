@@ -416,8 +416,8 @@ sys.path.insert(0, str(src_dir))
 
 `.github/workflows/ci.yml` runs on every push, pull request and manual dispatch.
 It mirrors the local recipes: `just lint` (the pre-commit Ruff hooks over all
-files), `ruff check` and `ruff format --check` on `src tests` with the locked
-Ruff, and `just test` (`uv run pytest`). Actions are pinned by commit SHA, the
+files), `ruff check` and `ruff format --check` on `src tests database_tests` with the locked
+Ruff, and `just test` (`uv run pytest`), plus the dedicated database lanes below. Actions are pinned by commit SHA, the
 token is read-only and no secrets are used. Development dependencies live in
 the `dev` group under `[dependency-groups]`, which `uv sync` installs by default.
 
@@ -461,3 +461,31 @@ possible platform. The tool's own isolated environment and separately installed
 pre-commit hook environments are outside the exported graph. A clean result
 means no known advisories reported for the audited graph, not proof that every
 usage is safe.
+
+
+### Real database lanes
+
+These required CI steps run separately from the fast model-sync suite:
+
+```bash
+UV_FROZEN=1 uv run pytest database_tests/test_admin_contention.py --create-db
+UV_FROZEN=1 uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+```
+
+The equivalent recipes are `just test-contention` and `just test-migrations`.
+`database_tests/conftest.py` supplies a fresh temporary file-backed SQLite database
+for each invocation. Both lanes use only synthetic services/users and temporary
+logo storage, with no production database or host access. They are outside the
+ordinary `tests/` discovery path and never skip for a platform check.
+
+The contention lane overlaps real admin POSTs on independent thread connections,
+holding the winner at its conditional UPDATE until the second request attempts
+its transaction. It requires a saved winner, a visible loser conflict, no mixed
+fields or orphan logos, and no partially saved quick-edit batch. Removing the
+validation transaction or SQLite's `IMMEDIATE` mode breaks this protection.
+
+The applied-migration lane overrides pytest's default `--no-migrations` and
+`--reuse-db`, executes every committed operation on a fresh database, checks the
+recorded core leaves and Service columns, and round-trips a synthetic service.
+The ordinary CI-gate tests inject a failing RunPython operation in a disposable
+source copy: the drift check stays green but this lane must fail.
