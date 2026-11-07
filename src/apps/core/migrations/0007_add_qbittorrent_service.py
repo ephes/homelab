@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_qbittorrent(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="qBittorrent",
         defaults={
             "description": "BitTorrent client for downloads and seeding",
@@ -16,8 +16,8 @@ def add_qbittorrent(apps, schema_editor):
 
 
 def remove_qbittorrent(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name="qBittorrent").delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

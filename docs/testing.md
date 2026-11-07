@@ -470,11 +470,13 @@ These required CI steps run separately from the fast model-sync suite:
 ```bash
 UV_FROZEN=1 uv run pytest database_tests/test_admin_contention.py --create-db
 UV_FROZEN=1 uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
+UV_FROZEN=1 uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
 ```
 
-The equivalent recipes are `just test-contention` and `just test-migrations`.
+The equivalent recipes are `just test-contention`, `just test-migrations`, and
+`just test-seed-migrations`.
 `database_tests/conftest.py` supplies a fresh temporary file-backed SQLite database
-for each invocation. Both lanes use only synthetic services/users and temporary
+for each invocation. All lanes use only synthetic services/users and temporary
 logo storage, with no production database or host access. They are outside the
 ordinary `tests/` discovery path and never skip for a platform check.
 
@@ -489,3 +491,13 @@ The applied-migration lane overrides pytest's default `--no-migrations` and
 recorded core leaves and Service columns, and round-trips a synthetic service.
 The ordinary CI-gate tests inject a failing RunPython operation in a disposable
 source copy: the drift check stays green but this lane must fail.
+
+
+The seed lane uses `database_tests.settings` with two independent temporary SQLite
+aliases. For every historical seed, MigrationExecutor runs forward and backward
+on the secondary alias: exact default-database sentinels must stay unchanged,
+owner-customized rows must retain all fields and primary keys, and newly inserted
+rows must remain on reversal. The historical Open WebUI update is also checked
+for connection-local writes. `python -m pytest` makes the test-only settings
+package importable without changing application paths. Run this command separately
+from the other lanes so each starts with its own fresh test databases.

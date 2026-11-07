@@ -3,7 +3,7 @@ from django.db import migrations
 
 def update_open_webui(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.filter(name="Open WebUI").update(
+    Service.objects.using(schema_editor.connection.alias).filter(name="Open WebUI").update(
         url="https://open-webui.home.xn--wersdrfer-47a.de/",
         icon="fas fa-comments",
         is_active=True,

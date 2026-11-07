@@ -132,6 +132,8 @@ def test_workflow_requires_executed_database_lanes():
     for command in [
         "uv run pytest database_tests/test_admin_contention.py --create-db",
         "uv run pytest database_tests/test_applied_migrations.py --migrations --create-db",
+        "uv run python -m pytest database_tests/test_seed_migrations.py "
+        "--ds=database_tests.settings --migrations --create-db",
     ]:
         step = next(step for step in steps if step.get("run") == command)
         assert not step.get("if") and not step.get("continue-on-error")

@@ -25,6 +25,10 @@ test-contention:
 test-migrations:
     uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
 
+# Verify seed routing and conservative rollback on two temporary databases
+test-seed-migrations:
+    uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
+
 # Run specific test
 test-one TEST_PATH:
     uv run pytest {{TEST_PATH}} -v

@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_open_webui(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Open WebUI",
         defaults={
             "description": "Chat interface for local LLMs (Open WebUI)",
@@ -16,8 +16,8 @@ def add_open_webui(apps, schema_editor):
 
 
 def remove_open_webui(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name="Open WebUI").delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):

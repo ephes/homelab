@@ -3,7 +3,7 @@ from django.db import migrations
 
 def add_archive_service(apps, schema_editor):
     Service = apps.get_model("core", "Service")
-    Service.objects.update_or_create(
+    Service.objects.using(schema_editor.connection.alias).get_or_create(
         name="Archive",
         defaults={
             "description": (
@@ -19,8 +19,8 @@ def add_archive_service(apps, schema_editor):
 
 
 def remove_archive_service(apps, schema_editor):
-    Service = apps.get_model("core", "Service")
-    Service.objects.filter(name="Archive").delete()
+    """Retain rows: these historical seeds did not record creation ownership."""
+    pass
 
 
 class Migration(migrations.Migration):
