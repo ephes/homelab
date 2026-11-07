@@ -79,20 +79,26 @@ def test_media_symlink_outside_root_returns_404(client, settings, tmp_path, dire
     assert sentinel not in response.content
 
 
-def test_media_symlink_inside_root_is_served(client, settings, tmp_path):
+@pytest.mark.parametrize("directory_link", [False, True])
+def test_media_symlink_inside_root_is_served(client, settings, tmp_path, directory_link):
     root = tmp_path / "media"
     root.mkdir()
     settings.MEDIA_ROOT = root
     (root / "original.svg").write_bytes(b"<svg/>")
-    (root / "linked.svg").symlink_to("original.svg")
+    if directory_link:
+        (root / "linked").symlink_to(root, target_is_directory=True)
+        url = "/media/linked/original.svg"
+    else:
+        (root / "linked.svg").symlink_to("original.svg")
+        url = "/media/linked.svg"
 
-    response = client.get("/media/linked.svg")
+    response = client.get(url)
 
     assert response.status_code == 200
     assert b"".join(response.streaming_content) == b"<svg/>"
     assert response["X-Content-Type-Options"] == "nosniff"
     assert response["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
-    cached = client.get("/media/linked.svg", HTTP_IF_MODIFIED_SINCE=response["Last-Modified"])
+    cached = client.get(url, HTTP_IF_MODIFIED_SINCE=response["Last-Modified"])
     assert cached.status_code == 304
     assert cached["X-Content-Type-Options"] == "nosniff"
     assert cached["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
@@ -106,3 +112,125 @@ def test_media_path_traversal_is_rejected():
     response = client.get("/media/../config/settings/base.py")
 
     assert response.status_code == 400
+
+
+@pytest.mark.parametrize("component", ["directory", "file"])
+def test_media_path_swap_after_validation_is_refused(client, settings, tmp_path, monkeypatch, component):
+    root = tmp_path / "media"
+    logos = root / "logos"
+    logos.mkdir(parents=True)
+    settings.MEDIA_ROOT = root
+    target = logos / "logo.svg"
+    target.write_bytes(b"safe logo")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = b"outside sentinel"
+    (outside / "logo.svg").write_bytes(sentinel)
+    resolve = Path.resolve
+    swapped = []
+
+    def resolve_then_swap(self, *args, **kwargs):
+        resolved = resolve(self, *args, **kwargs)
+        if self == target and not swapped:
+            swapped.append(True)
+            if component == "directory":
+                logos.rename(root / "retired")
+                logos.symlink_to(outside, target_is_directory=True)
+            else:
+                target.unlink()
+                target.symlink_to(outside / "logo.svg")
+        return resolved
+
+    monkeypatch.setattr(Path, "resolve", resolve_then_swap)
+    response = client.get("/media/logos/logo.svg")
+    body = b"".join(response.streaming_content) if response.streaming else response.content
+    response.close()
+
+    assert swapped
+    assert sentinel not in body
+    assert response.status_code == 404
+
+
+def test_media_replaced_regular_file_identity_is_refused(client, settings, tmp_path, monkeypatch):
+    import os
+
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    target = tmp_path / "logo.svg"
+    target.write_bytes(b"original")
+    replacement = tmp_path / "new.svg"
+    replacement.write_bytes(b"replacement")
+    original_open = os.open
+    replaced = []
+
+    def replace_then_open(path, flags, *args, **kwargs):
+        if path == target.name and kwargs.get("dir_fd") is not None:
+            replacement.replace(target)
+            replaced.append(True)
+        return original_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(media.os, "open", replace_then_open)
+    response = client.get("/media/logo.svg")
+    assert replaced
+    assert response.status_code == 404
+
+
+def test_media_stream_uses_opened_file_after_path_replacement(client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    target = tmp_path / "logo.svg"
+    target.write_bytes(b"original")
+    response = client.get("/media/logo.svg")
+    replacement = tmp_path / "new.svg"
+    replacement.write_bytes(b"replacement")
+    replacement.replace(target)
+    try:
+        assert b"".join(response.streaming_content) == b"original"
+        assert response["Content-Length"] == str(len(b"original"))
+    finally:
+        response.close()
+
+
+@pytest.mark.parametrize("conditional", [False, True])
+def test_media_directory_is_never_served(client, settings, tmp_path, conditional):
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logos").mkdir()
+    headers = {"HTTP_IF_MODIFIED_SINCE": "Wed, 31 Dec 2098 23:59:59 GMT"} if conditional else {}
+    assert client.get("/media/logos", **headers).status_code == 404
+
+
+def test_media_encoded_file_retains_headers(client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg.gz").write_bytes(b"compressed fixture")
+    response = client.get("/media/logo.svg.gz", HTTP_IF_MODIFIED_SINCE="invalid date")
+    try:
+        assert response.status_code == 200
+        assert response["Content-Type"] == "image/svg+xml"
+        assert response["Content-Encoding"] == "gzip"
+        assert response["X-Content-Type-Options"] == "nosniff"
+        assert response["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+        assert b"".join(response.streaming_content) == b"compressed fixture"
+    finally:
+        response.close()
+
+
+def test_media_not_modified_closes_opened_descriptor(client, settings, tmp_path, monkeypatch):
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"logo")
+    opened = []
+    original_open = media._open_regular_file
+
+    def record_source(path):
+        source, metadata = original_open(path)
+        opened.append(source)
+        return source, metadata
+
+    monkeypatch.setattr(media, "_open_regular_file", record_source)
+    response = client.get("/media/logo.svg")
+    response.close()
+    cached = client.get("/media/logo.svg", HTTP_IF_MODIFIED_SINCE=response["Last-Modified"])
+    assert cached.status_code == 304
+    assert len(opened) == 2
+    assert all(source.closed for source in opened)

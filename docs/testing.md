@@ -440,6 +440,31 @@ migrations when constructing its test database. `tests/test_ci_gates.py` verifie
 the current source passes and intentional model/URL faults fail in disposable
 source copies. Production `check --deploy` is a separate operator check.
 
+### Media descriptor and routed admin logo regressions
+
+`uv run pytest tests/core/test_media.py` uses synthetic files and deterministic
+path replacements to check descriptor containment, regular-file identity,
+streaming after replacement, internal links and conditional/header behavior.
+It does not inspect platform-specific descriptor paths or use timing races.
+
+The separate two-database runtime lane uses the existing file-backed settings:
+
+```bash
+UV_FROZEN=1 uv run python -m pytest database_tests/test_admin_logo_databases.py --ds=database_tests.settings --create-db
+```
+
+The equivalent recipe is `just test-admin-logos`. This is a local-only gate,
+separate from ordinary pytest discovery and the existing Actions workflow.
+
+A router sends Service reads/writes to `secondary`, while users/admin records
+remain on `default`. Conflicting default rows and shared synthetic storage names
+exercise replacement, clearing, individual/bulk deletion, delayed commit cleanup,
+rollback, retained references, partial/failed uploads and post-commit compensation.
+Default rows must remain unchanged. This tests existing alias behavior; it does
+not introduce a new runtime routing policy. To check sensitivity, temporarily
+route retirement reference checks, on-commit registration or failed-upload
+reference checks to `default`: the corresponding tests must fail.
+
 ### Locked Python dependency audit
 
 CI's separate, ten-minute audit job exports the frozen runtime graph and all

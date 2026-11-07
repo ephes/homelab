@@ -146,9 +146,17 @@ resolved `MEDIA_ROOT`, including file or directory symlinks to external location
 Symlinks whose targets stay inside the root are supported, including conditional
 requests (304 responses).
 
-This check assumes a stable filesystem path between validation and opening the
-file; it does not prevent concurrent path replacement. Restrict filesystem write
-access to `MEDIA_ROOT` and its parent directories to trusted processes.
+Serving requires POSIX descriptor-relative opens (`dir_fd`, `O_NOFOLLOW` and
+`O_DIRECTORY`, available on the supported Linux/macOS hosts). The serving user
+needs read and search permissions on every canonical ancestor directory, including
+those above `MEDIA_ROOT`. After resolving
+internal links, every canonical path component is opened without following
+replacement symlinks. The opened descriptor must identify the same regular file
+that was checked; changed identities and directories return 404. Streaming,
+content length and conditional modification times use this descriptor without
+reopening the pathname. A stable internal link keeps its ordinary 200/304 behavior.
+This does not freeze in-place writes to an already opened file; restrict filesystem
+write access to trusted processes.
 
 ### Internationalization
 

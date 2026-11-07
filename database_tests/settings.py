@@ -1,4 +1,4 @@
-"""Two synthetic SQLite aliases used only by the migration regression lane."""
+"""Two synthetic SQLite aliases used by migration and runtime admin regression lanes."""
 
 from copy import deepcopy
 

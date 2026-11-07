@@ -118,7 +118,10 @@ available after successful saves. If the admin change-form transaction fails whi
 writing an upload, saving its row, or saving related/admin records, the new upload
 is removed after rollback. Names are reserved through storage before bytes are
 copied, so cleanup removes only this save's allocation, including partial writes;
-old and shared logos remain untouched.
+old and shared logos remain untouched. Reference checks and commit callbacks use
+the Service write database (or the deleted queryset's database for bulk deletes),
+so rows on another alias do not determine ownership. The two-alias regression
+command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or
 historical orphan files. It cannot compensate a rollback in a caller-owned outer
