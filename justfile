@@ -29,6 +29,10 @@ test-migrations:
 test-seed-migrations:
     uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
 
+# Verify runtime admin logo ownership on two temporary databases
+test-admin-logos:
+    uv run python -m pytest database_tests/test_admin_logo_databases.py --ds=database_tests.settings --create-db
+
 # Run specific test
 test-one TEST_PATH:
     uv run pytest {{TEST_PATH}} -v
