@@ -22,6 +22,7 @@ import mimetypes
 import os
 import posixpath
 import stat
+from io import BufferedReader, FileIO
 from pathlib import Path
 
 from django.conf import settings
@@ -49,7 +50,19 @@ def _open_regular_file(path):
         descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
     finally:
         os.close(directory)
-    source = os.fdopen(descriptor, "rb")
+    try:
+        raw = FileIO(descriptor, "rb")
+    except BaseException:
+        # FileIO leaves a supplied descriptor open if construction fails.
+        os.close(descriptor)
+        raise
+    try:
+        source = BufferedReader(raw)
+    except BaseException:
+        # A wrapper may already have closed raw during failed construction;
+        # closing the owning object again is safe even if the fd was reused.
+        raw.close()
+        raise
     try:
         opened = os.fstat(source.fileno())
         if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(expected, opened):

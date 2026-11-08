@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Close raw media descriptors when file-wrapper construction fails.
+- Cover valid admin quick-edit batches with a second-save database failure,
+  full row/revision and cleanup-callback rollback, and a successful retry.
 - Preserve owner edits and competing logos made while default-service logos are
   copied; attach only the missing logo and revision and retire unused allocations.
 - Return a controlled media 404 when resolving the media root fails.
