@@ -151,6 +151,10 @@ The command creates missing defaults by name and preserves all fields on existin
 services, including owner URLs, descriptions, icons, display order and active status.
 It still fills a missing built-in logo without replacing an existing logo. To reset
 a service, edit it explicitly in the admin.
+After copying a missing logo, the command reloads the service under a database
+lock and saves only the logo and revision. Owner edits made during copying are
+preserved. If another writer has supplied a logo, that logo wins and the command
+removes only its own unused allocation (reporting any cleanup failure).
 Rows created by historical data migrations are existing services too. A fresh migrated
 installation may retain older ordering (SnappyMail 6, Graphyard 23, Grafana 24),
 rather than the command's current 7, 24, 25. Rerunning the command does not reconcile
