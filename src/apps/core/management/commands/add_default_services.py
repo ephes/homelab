@@ -296,11 +296,18 @@ class Command(BaseCommand):
                             with open(logo_path, "rb") as f, logo_storage.open(reserved_name, "wb") as destination:
                                 for chunk in File(f).chunks():
                                     destination.write(chunk)
-                            # The row is saved separately, so a failing row save cannot
-                            # hide the stored file either.
-                            service.logo_file.name = reserved_name
-                            service.save(using=using)
-                            self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
+                            # Storage I/O may outlive an owner edit. Reload and lock
+                            # before attaching, and write only the logo and revision.
+                            service = Service.objects.using(using).select_for_update().get(pk=service.pk)
+                            if service.logo_file:
+                                # Relinquish ownership before deletion: another
+                                # upload can reuse the freed name immediately.
+                                stored_logo_names.remove(reserved_name)
+                                self._remove_stored_logos(logo_storage, [reserved_name], using)
+                            else:
+                                service.logo_file.name = reserved_name
+                                service.save(using=using, update_fields=["logo_file", "updated_at"])
+                                self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
 
                     status = "Created" if created else "Kept"
                     self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
@@ -322,4 +329,4 @@ class Command(BaseCommand):
             except Exception as error:  # noqa: BLE001 - keep cleaning up, the original error is re-raised
                 self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))
             else:
-                self.stderr.write(f"Removed logo file {name} after the failed run")
+                self.stderr.write(f"Removed logo file {name} (unused allocation)")

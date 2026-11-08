@@ -62,12 +62,12 @@ def _open_regular_file(path):
 
 def serve_media(request, path):
     """Serve a file from ``MEDIA_ROOT`` with hardening headers."""
-    root = Path(settings.MEDIA_ROOT).resolve()
     # Match Django's static path normalization, then check symlink targets.
     normalized_path = posixpath.normpath(path).lstrip("/")
     if ".." in Path(normalized_path).parts:
         raise SuspiciousFileOperation("Media path traversal")
     try:
+        root = Path(settings.MEDIA_ROOT).resolve()
         resolved_path = (root / normalized_path).resolve()
     except (OSError, RuntimeError, ValueError) as exc:
         raise Http404("Invalid media path") from exc

@@ -69,6 +69,56 @@ def test_reseeding_backfills_only_missing_logos(owner_logo):
         assert Path(service.logo_file.name).name.startswith("fractal-ipmi")
 
 
+@pytest.mark.parametrize("owner_logo", [False, True])
+def test_logo_copy_preserves_intervening_owner_save(logo_dir, monkeypatch, owner_logo):
+    service = Service.objects.create(name="Home Assistant", description="Before", order=1)
+    storage = Service._meta.get_field("logo_file").storage
+    original_open = storage.open
+    edits = []
+
+    def open_after_owner_save(name, mode="rb"):
+        if mode == "wb" and not edits:
+            current = Service.objects.get(pk=service.pk)
+            current.description = "Owner description"
+            current.url = "https://owner.example/"
+            current.order = 99
+            current.is_active = False
+            if owner_logo:
+                current.logo_file.save("owner.svg", ContentFile(b"owner logo"), save=False)
+            current.save()
+            edits.append(Service.objects.values().get(pk=service.pk))
+        return original_open(name, mode)
+
+    # Interleave a real model save after the seed read, during storage I/O.
+    # SQLite serializes independent writers; this deterministic seam also
+    # exercises the stale snapshot possible on row-locking databases.
+    monkeypatch.setattr(storage, "open", open_after_owner_save)
+    original_chunks = File.chunks
+    monkeypatch.setattr(
+        File,
+        "chunks",
+        lambda self, chunk_size=None: iter([b"synthetic seed logo"])
+        if self.name
+        else original_chunks(self, chunk_size),
+    )
+    call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert len(edits) == 1
+    after = Service.objects.values().get(pk=service.pk)
+    before = edits[0]
+    for field in before.keys() - {"logo_file", "updated_at"}:
+        assert after[field] == before[field]
+    service.refresh_from_db()
+    with service.logo_file.open("rb") as source:
+        assert source.read() == (b"owner logo" if owner_logo else b"synthetic seed logo")
+    if owner_logo:
+        assert after == before
+    else:
+        assert after["updated_at"] > before["updated_at"]
+    referenced = set(Service.objects.exclude(logo_file="").values_list("logo_file", flat=True))
+    assert {"services/logos/" + name for name in stored_logos(logo_dir)} == referenced
+
+
 def test_add_default_services_includes_work_app():
     call_command("add_default_services")
 
@@ -92,6 +142,52 @@ def logo_dir(settings, tmp_path):
 
 def stored_logos(logo_dir):
     return sorted(path.name for path in logo_dir.iterdir()) if logo_dir.exists() else []
+
+
+def test_compensated_seed_name_is_not_deleted_again_after_later_failure(logo_dir, monkeypatch):
+    service = Service.objects.create(name="Home Assistant")
+    storage = service.logo_file.storage
+    original_save, original_open, original_delete = storage.save, storage.open, storage.delete
+    reserved, reused, deleted = [], [], []
+
+    def save(name, content, max_length=None):
+        if reused:
+            raise OSError("later synthetic allocation failure")
+        allocated = original_save(name, content, max_length=max_length)
+        reserved.append(allocated)
+        return allocated
+
+    def open_after_competing_logo(name, mode="rb"):
+        if mode == "wb" and name == reserved[0]:
+            current = Service.objects.get(pk=service.pk)
+            current.logo_file = original_save("services/logos/owner.svg", ContentFile(b"owner"))
+            current.save()
+        return original_open(name, mode)
+
+    def delete_then_reuse(name):
+        deleted.append(name)
+        original_delete(name)
+        if not reused:
+            # Another allocation exists before its database reference commits.
+            reused.append(original_save(name, ContentFile(b"other writer")))
+
+    monkeypatch.setattr(storage, "save", save)
+    monkeypatch.setattr(storage, "open", open_after_competing_logo)
+    monkeypatch.setattr(storage, "delete", delete_then_reuse)
+    original_chunks = File.chunks
+    monkeypatch.setattr(
+        File,
+        "chunks",
+        lambda self, chunk_size=None: iter([b"synthetic logo"]) if self.name else original_chunks(self, chunk_size),
+    )
+    with pytest.raises(OSError, match="later synthetic allocation failure"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert reused == reserved
+    assert deleted == reserved
+    assert storage.exists(reused[0])
+    with storage.open(reused[0], "rb") as source:
+        assert source.read() == b"other writer"
 
 
 def fail_logo_save_on_call(monkeypatch, failing_call):

@@ -445,7 +445,17 @@ source copies. Production `check --deploy` is a separate operator check.
 `uv run pytest tests/core/test_media.py` uses synthetic files and deterministic
 path replacements to check descriptor containment, regular-file identity,
 streaming after replacement, internal links and conditional/header behavior.
+Injected root-resolution failures must return 404 before any media file is opened;
+a subsequent request with the restored root must stream normally.
 It does not inspect platform-specific descriptor paths or use timing races.
+
+`uv run pytest tests/core/test_add_default_services.py` also interleaves a real
+owner save during synthetic logo copying. It checks that owner fields and a
+competing logo survive, revisions advance only on attachment, and unused seed
+allocations are removed. This deterministic seam covers the stale-read window
+without relying on database-specific thread scheduling.
+After compensation, a reused name must survive a later seed failure: ownership
+ends at deletion, so rollback must not attempt that name a second time.
 
 The separate two-database runtime lane uses the existing file-backed settings:
 

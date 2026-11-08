@@ -57,6 +57,37 @@ def test_media_missing_file_returns_404(client):
     assert client.get("/media/missing.svg").status_code == 404
 
 
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError, ValueError])
+def test_media_root_resolution_failure_returns_404(client, settings, tmp_path, monkeypatch, error_type):
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"synthetic logo")
+    original_resolve = Path.resolve
+    failures = []
+
+    def fail_root(self, *args, **kwargs):
+        if self == tmp_path:
+            failures.append(self)
+            raise error_type("synthetic unavailable root")
+        return original_resolve(self, *args, **kwargs)
+
+    def unexpected_open(*args, **kwargs):
+        pytest.fail("unresolved root must not open a file")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "resolve", fail_root)
+        patch.setattr(media, "_open_regular_file", unexpected_open)
+        assert client.get("/media/logo.svg").status_code == 404
+    assert failures == [tmp_path]
+    response = client.get("/media/logo.svg")
+    try:
+        assert response.status_code == 200
+        assert b"".join(response.streaming_content) == b"synthetic logo"
+    finally:
+        response.close()
+
+
 def test_media_nul_path_returns_404(client):
     assert client.get("/media/a%00b").status_code == 404
 
