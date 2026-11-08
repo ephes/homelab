@@ -447,6 +447,12 @@ path replacements to check descriptor containment, regular-file identity,
 streaming after replacement, internal links and conditional/header behavior.
 Injected root-resolution failures must return 404 before any media file is opened;
 a subsequent request with the restored root must stream normally.
+Injected file-wrapper failures after a successful raw open must close every acquired
+descriptor exactly once, including across repeated requests. Ownership transfers
+first to `FileIO`, then to `BufferedReader`; failed buffer construction closes the
+owning file object even if the buffer already closed it. Normal responses retain
+their source until closed. Tests record open/close ownership directly, without
+platform-specific descriptor enumeration.
 It does not inspect platform-specific descriptor paths or use timing races.
 
 `uv run pytest tests/core/test_add_default_services.py` also interleaves a real
@@ -456,6 +462,16 @@ allocations are removed. This deterministic seam covers the stale-read window
 without relying on database-specific thread scheduling.
 After compensation, a reused name must survive a later seed failure: ownership
 ends at deletion, so rollback must not attempt that name a second time.
+
+`uv run pytest tests/core/test_admin_conflicts.py` submits two valid quick edits,
+saves the first row, then triggers a real unique-constraint database failure on
+the second save. The test checks that all row fields/revisions roll back, real
+logo retirement callbacks do not run, and a retry saves each row and runs each
+callback once. Its counterfactual disables both changelist transaction scopes
+(the custom validation scope and Django's built-in save scope): the first row
+then persists and the rollback assertion fails. Removing only the custom scope
+still leaves Django's save transaction protecting the writes; the contention
+lane separately covers the validation lock lifetime.
 
 The separate two-database runtime lane uses the existing file-backed settings:
 

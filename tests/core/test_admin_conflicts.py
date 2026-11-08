@@ -1,6 +1,7 @@
 """Stale admin submissions retain newer rows and never allocate uploads."""
 
 import pytest
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -98,3 +99,75 @@ def test_missing_revision_cannot_overwrite_service(admin_client, service):
     assert response.status_code == 200
     service.refresh_from_db()
     assert service.order == 1
+
+
+def test_list_edit_database_failure_rolls_back_saved_rows_and_callbacks(admin_client, tmp_path, settings, monkeypatch):
+    from django.contrib import admin
+    from django.db import IntegrityError, transaction
+
+    settings.MEDIA_ROOT = tmp_path
+    services = [
+        Service.objects.create(name=name, order=i, is_active=False) for i, name in enumerate(["First", "Second"])
+    ]
+    url = reverse("admin:core_service_changelist")
+    forms = admin_client.get(url).context["cl"].formset.forms
+    data = {"form-TOTAL_FORMS": "2", "form-INITIAL_FORMS": "2", "_save": "Save"}
+    expected_orders = {}
+    for i, form in enumerate(forms):
+        expected_orders[form.instance.pk] = 10 + i
+        data.update(
+            {
+                f"form-{i}-id": str(form.instance.pk),
+                f"form-{i}-order": str(10 + i),
+                f"form-{i}-is_active": "on",
+                f"form-{i}-original_revision": form.initial["original_revision"],
+            }
+        )
+    before = list(Service.objects.order_by("pk").values())
+    storage = Service._meta.get_field("logo_file").storage
+    retired = {
+        service.pk: storage.save(f"retired-{service.pk}.svg", ContentFile(b"synthetic old logo"))
+        for service in services
+    }
+    original_save = Service.save
+    attempted, saved, callbacks = [], [], []
+    inject_failure = True
+
+    def save_with_second_row_failure(self, *args, **kwargs):
+        if self.pk not in expected_orders:
+            return original_save(self, *args, **kwargs)
+        attempted.append(self.pk)
+        if inject_failure and len(attempted) == 2:
+            # Raise a real unique-constraint database error after the first row
+            # has been saved, rather than refusing the forms during validation.
+            original_save(Service(name=services[0].name), force_insert=True)
+            pytest.fail("the duplicate insert must fail")
+        result = original_save(self, *args, **kwargs)
+        current = Service.objects.get(pk=self.pk)
+        assert current.order == expected_orders[self.pk]
+        assert current.is_active
+        assert current.updated_at != next(row["updated_at"] for row in before if row["id"] == self.pk)
+        saved.append(self.pk)
+        transaction.on_commit(lambda pk=self.pk: callbacks.append(pk), using=self._state.db)
+        # Exercise the real cleanup callback without changing list-editable fields.
+        admin.site._registry[Service]._retire_logos([retired[self.pk]], using=self._state.db)
+        return result
+
+    monkeypatch.setattr(Service, "save", save_with_second_row_failure)
+    with pytest.raises(IntegrityError):
+        admin_client.post(url, data)
+
+    assert attempted == [form.instance.pk for form in forms]
+    assert saved == attempted[:1]
+    assert list(Service.objects.order_by("pk").values()) == before
+    assert callbacks == []
+    assert all(storage.exists(name) for name in retired.values())
+
+    inject_failure = False
+    attempted.clear()
+    saved.clear()
+    assert admin_client.post(url, data).status_code == 302
+    assert saved == attempted == [form.instance.pk for form in forms]
+    assert callbacks == saved
+    assert dict(Service.objects.values_list("pk", "order")) == expected_orders
+    assert not any(storage.exists(name) for name in retired.values())

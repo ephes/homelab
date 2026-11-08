@@ -265,3 +265,74 @@ def test_media_not_modified_closes_opened_descriptor(client, settings, tmp_path,
     assert cached.status_code == 304
     assert len(opened) == 2
     assert all(source.closed for source in opened)
+
+
+@pytest.mark.parametrize("stage", ["raw", "buffer", "closed_buffer"])
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError, MemoryError])
+def test_media_wrapper_failure_closes_all_descriptors(client, settings, tmp_path, monkeypatch, error_type, stage):
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"synthetic logo")
+    original_open, original_close = media.os.open, media.os.close
+    acquired, active, failures = [], {}, []
+    error = error_type("synthetic wrapper failure")
+
+    def record_open(*args, **kwargs):
+        descriptor = original_open(*args, **kwargs)
+        record = {"descriptor": descriptor, "closes": 0}
+        acquired.append(record)
+        assert descriptor not in active
+        active[descriptor] = record
+        return descriptor
+
+    def record_closed(descriptor):
+        record = active.pop(descriptor)
+        record["closes"] += 1
+
+    def record_close(descriptor):
+        record_closed(descriptor)
+        original_close(descriptor)
+
+    class TrackedFileIO(media.FileIO):
+        def close(self):
+            if not self.closed:
+                descriptor = self.fileno()
+                super().close()
+                record_closed(descriptor)
+            else:
+                super().close()
+
+    def fail_raw(descriptor, *args, **kwargs):
+        assert descriptor in active
+        failures.append(descriptor)
+        raise error
+
+    def fail_buffer(raw):
+        assert raw.fileno() in active
+        failures.append(raw.fileno())
+        if stage == "closed_buffer":
+            raw.close()
+        raise error
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(media.os, "open", record_open)
+            patch.setattr(media.os, "close", record_close)
+            patch.setattr(media, "FileIO", fail_raw if stage == "raw" else TrackedFileIO)
+            if stage != "raw":
+                patch.setattr(media, "BufferedReader", fail_buffer)
+            for _ in range(3):
+                if error_type is OSError:
+                    assert client.get("/media/logo.svg").status_code == 404
+                else:
+                    with pytest.raises(error_type) as caught:
+                        client.get("/media/logo.svg")
+                    assert caught.value is error
+                assert not active
+        assert len(failures) == 3
+        assert acquired and all(record["closes"] == 1 for record in acquired)
+    finally:
+        # Keep failing counterfactuals from leaking descriptors in the test runner.
+        for descriptor in active:
+            original_close(descriptor)

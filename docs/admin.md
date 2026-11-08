@@ -89,6 +89,11 @@ held through the save. This protects admin saves against writers that advance
 `updated_at` (normal model saves); direct queryset updates must update that timestamp
 too to participate in conflict detection.
 
+A database failure while saving a valid quick-edit batch also rolls back the
+entire batch, including revisions and pending logo cleanup callbacks. Reload the
+list after a failed request before retrying to pick up any intervening saves by
+another editor; rollback itself leaves the original revision valid for retry.
+
 SQLite uses `IMMEDIATE` transactions so overlapping admin writes wait at
 transaction entry, before reading the service. After the winner commits, the
 other request validates its stale revision and shows a conflict. The normal
