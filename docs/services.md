@@ -151,6 +151,10 @@ The command creates missing defaults by name and preserves all fields on existin
 services, including owner URLs, descriptions, icons, display order and active status.
 It still fills a missing built-in logo without replacing an existing logo. To reset
 a service, edit it explicitly in the admin.
+OpsGate was retired on 2026-11-10 (stopped, data kept): its production tile is set
+inactive (`is_active=false`) and, because the command keeps the active status of an
+existing service, stays hidden across deploys. The seed entry is unchanged, so only a
+fresh installation would create it (active).
 After copying a missing logo, the command reloads the service under a database
 lock and saves only the logo and revision. Owner edits made during copying are
 preserved. If another writer has supplied a logo, that logo wins and the command
