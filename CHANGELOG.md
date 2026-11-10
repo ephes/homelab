@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Docs: the OpsGate tile is inactive in production since OpsGate's retirement
+  (2026-11-10); `add_default_services` keeps that status on later deploys.
 - Close raw media descriptors when file-wrapper construction fails.
 - Cover valid admin quick-edit batches with a second-save database failure,
   full row/revision and cleanup-callback rollback, and a successful retry.
