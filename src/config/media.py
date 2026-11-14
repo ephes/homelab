@@ -28,9 +28,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
-from django.http import FileResponse, Http404
-from django.utils.cache import get_conditional_response
-from django.utils.http import http_date
+from django.http import FileResponse, Http404, HttpResponseNotModified
+from django.utils.http import http_date, parse_etags
 
 MEDIA_CONTENT_SECURITY_POLICY = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 
@@ -74,6 +73,20 @@ def _open_regular_file(path):
     return source, opened
 
 
+def _if_none_match_hits(request, etag: str) -> bool:
+    """Weak If-None-Match comparison (RFC 9110 13.1.2) for GET/HEAD."""
+    if request.method not in ("GET", "HEAD"):
+        return False
+    header = request.META.get("HTTP_IF_NONE_MATCH")
+    if not header:
+        return False
+    tags = parse_etags(header)
+    if "*" in tags:
+        return True
+    opaque = etag.removeprefix("W/")
+    return any(tag.removeprefix("W/") == opaque for tag in tags)
+
+
 def serve_media(request, path):
     """Serve a file from ``MEDIA_ROOT`` with hardening headers."""
     # Match Django's static path normalization, then check symlink targets.
@@ -96,11 +109,12 @@ def serve_media(request, path):
         # exposing raw filesystem identifiers or hashing unbounded media bytes.
         generation = (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
         etag = f'W/"{sha256(str(generation).encode("ascii")).hexdigest()}"'
-        # Deliberately omit last_modified from conditional evaluation: an HTTP
-        # date cannot distinguish generations within the same second.
-        response = get_conditional_response(request, etag=etag)
-        if response is not None:
+        # Only If-None-Match is evaluated: an HTTP date cannot distinguish
+        # generations within the same second, and a weak validator cannot
+        # satisfy If-Match, so other preconditions keep serving full content.
+        if _if_none_match_hits(request, etag):
             source.close()
+            response = HttpResponseNotModified()
         else:
             content_type, encoding = mimetypes.guess_type(normalized_path)
             response = FileResponse(

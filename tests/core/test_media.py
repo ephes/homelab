@@ -420,3 +420,38 @@ def test_media_date_only_cannot_hide_a_generation(client, settings, tmp_path, ta
         assert b"".join(response.streaming_content) == b"logo"
     finally:
         response.close()
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [
+        {"HTTP_IF_UNMODIFIED_SINCE": "Thu, 01 Jan 1970 00:00:00 GMT"},
+        {"HTTP_IF_UNMODIFIED_SINCE": "Wed, 31 Dec 2098 23:59:59 GMT"},
+        {"HTTP_IF_MATCH": "current"},
+        {"HTTP_IF_MATCH": '"stale"'},
+    ],
+)
+def test_media_other_preconditions_keep_serving_full_content(client, settings, tmp_path, headers):
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"logo")
+    first = client.get("/media/logo.svg")
+    first.close()
+    if headers.get("HTTP_IF_MATCH") == "current":
+        headers = {"HTTP_IF_MATCH": first["ETag"]}
+    response = client.get("/media/logo.svg", **headers)
+    try:
+        assert response.status_code == 200
+        assert response["ETag"] == first["ETag"]
+        assert b"".join(response.streaming_content) == b"logo"
+    finally:
+        response.close()
+
+
+def test_media_if_none_match_ignored_for_unsafe_methods(client, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"logo")
+    first = client.get("/media/logo.svg")
+    first.close()
+    response = client.post("/media/logo.svg", HTTP_IF_NONE_MATCH=first["ETag"])
+    assert response.status_code != 304
+    response.close()

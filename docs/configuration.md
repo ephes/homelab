@@ -136,5 +136,7 @@ requests return 304 with the same validators and hardening headers as 200.
 `If-None-Match` takes precedence over `If-Modified-Since`. Date-only requests
 conservatively receive the full response: second-resolution HTTP dates cannot
 prove that the cached generation is current. Invalid or stale tags also receive
-200. These guarantees apply to Django's media view; any separate media server
+200. `If-Match` and `If-Unmodified-Since` are not evaluated, so they never
+turn a media request into 412; the weak tag could not satisfy `If-Match` anyway.
+These guarantees apply to Django's media view; any separate media server
 needs its own equivalent cache and security policy.

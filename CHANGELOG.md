@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Revalidate media with opaque opened-file generation ETags, preserving validators
-  and hardening headers on 200/304; date-only requests conservatively return 200.
+  and hardening headers on 200/304; date-only requests conservatively return 200,
+  and `If-Match`/`If-Unmodified-Since` are ignored instead of answering 412.
 - Limit admin logo uploads to 1 MiB using declared and actual byte checks;
   preserve existing rows/logos on refusal and compensate partial storage copies.
 
