@@ -82,6 +82,13 @@ git push origin feature/my-feature
 
 ## Development dependency security
 
+The documentation parser uses SoupSieve 4.1 with BeautifulSoup 4.15.0 to
+address the SoupSieve denial-of-service advisories, including
+[CVE-2026-126190](https://github.com/facelessuser/soupsieve/security/advisories/GHSA-mmhr-3c5m-f64f).
+SoupSieve requires Python 3.11.5 or newer; Homelab's existing Python 3.12
+minimum already meets that requirement. BeautifulSoup's declared SoupSieve
+requirement accepts 4.1; regression checks cover its public CSS selection APIs.
+
 The November 2026 lock refresh updates filelock to 4.2.1, Starlette to 1.3.1
 and virtualenv to 21.14.10, plus virtualenv's required distlib and packaging
 versions. Version 21.14.10 also fixes CVE-2026-113713. These findings affect

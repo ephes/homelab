@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Update the documentation parser lock to SoupSieve 4.1 and BeautifulSoup 4.15.0
+  for the SoupSieve denial-of-service advisories, including CVE-2026-126190.
+  The existing Python 3.12 minimum satisfies SoupSieve's Python 3.11.5 floor.
+
 - Revalidate media with opaque opened-file generation ETags, preserving validators
   and hardening headers on 200/304; date-only requests conservatively return 200,
   and `If-Match`/`If-Unmodified-Since` are ignored instead of answering 412.
