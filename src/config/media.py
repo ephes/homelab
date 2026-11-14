@@ -22,14 +22,15 @@ import mimetypes
 import os
 import posixpath
 import stat
+from hashlib import sha256
 from io import BufferedReader, FileIO
 from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation
-from django.http import FileResponse, Http404, HttpResponseNotModified
+from django.http import FileResponse, Http404
+from django.utils.cache import get_conditional_response
 from django.utils.http import http_date
-from django.views.static import was_modified_since
 
 MEDIA_CONTENT_SECURITY_POLICY = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 
@@ -91,20 +92,27 @@ def serve_media(request, path):
     except (OSError, ValueError) as exc:
         raise Http404("Media file unavailable") from exc
     try:
-        if not was_modified_since(request.META.get("HTTP_IF_MODIFIED_SINCE"), opened.st_mtime):
+        # Bind a weak validator to the verified descriptor's generation, without
+        # exposing raw filesystem identifiers or hashing unbounded media bytes.
+        generation = (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
+        etag = f'W/"{sha256(str(generation).encode("ascii")).hexdigest()}"'
+        # Deliberately omit last_modified from conditional evaluation: an HTTP
+        # date cannot distinguish generations within the same second.
+        response = get_conditional_response(request, etag=etag)
+        if response is not None:
             source.close()
-            response = HttpResponseNotModified()
         else:
             content_type, encoding = mimetypes.guess_type(normalized_path)
             response = FileResponse(
                 source, content_type=content_type or "application/octet-stream", filename=normalized_path
             )
-            response["Last-Modified"] = http_date(opened.st_mtime)
             if encoding:
                 response["Content-Encoding"] = encoding
     except BaseException:
         source.close()
         raise
+    response["ETag"] = etag
+    response["Last-Modified"] = http_date(opened.st_mtime)
     response["X-Content-Type-Options"] = "nosniff"
     response["Content-Security-Policy"] = MEDIA_CONTENT_SECURITY_POLICY
     return response

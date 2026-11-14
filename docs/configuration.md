@@ -102,3 +102,39 @@ overlapping writers to wait and then detect a stale revision. This applies to
 SQLite only; other database backends keep their existing options. Keep atomic
 blocks short: SQLite still allows only one writer, and its normal lock timeout
 can be exhausted. Test settings use the same transaction mode.
+
+## Admin logo upload budget
+
+Admin service logos are limited to **1 MiB (1,048,576 bytes)** per file.
+The form rejects a declared oversize before reading the upload, then counts
+actual chunks and stops before accepting an excess chunk. A bounded in-memory
+snapshot supplies the save; misleading upload size metadata cannot bypass the
+limit. A field error leaves the stored service, revision and previous logo intact.
+The storage copy also checks the actual total before every write; if copying
+fails after reserving a name, the existing allocation cleanup removes the new
+partial file. Existing and shared logos retain their normal ownership rules.
+
+This is an admin upload limit, not Django's memory-spooling threshold or a
+request-body limit. Django may already have spooled the incoming request before
+form validation; configure a request-body limit at the HTTP server if needed.
+Direct ORM/storage writes and built-in seed assets do not pass through this form.
+
+## Media revalidation
+
+Django serves media from verified opened regular-file descriptors with `nosniff`
+and a sandbox Content Security Policy, including conditional responses. Each
+response carries `Last-Modified` and an opaque weak `ETag` derived from the opened
+file's device, inode, size and nanosecond modification/change timestamps. The tag
+identifies a filesystem generation rather than a content digest; replacing a file
+or updating it within one second invalidates its previous tag without reading the
+whole media file. It relies on the filesystem updating this metadata normally.
+An already-open response continues to serve its opened generation after atomic
+path replacement.
+
+`If-None-Match` uses standard weak comparison, tag lists and `*`; matching GET/HEAD
+requests return 304 with the same validators and hardening headers as 200.
+`If-None-Match` takes precedence over `If-Modified-Since`. Date-only requests
+conservatively receive the full response: second-resolution HTTP dates cannot
+prove that the cached generation is current. Invalid or stale tags also receive
+200. These guarantees apply to Django's media view; any separate media server
+needs its own equivalent cache and security policy.

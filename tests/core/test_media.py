@@ -46,7 +46,7 @@ def test_media_not_modified_response_keeps_hardening_headers(client, isolated_me
     (Path(isolated_media_root) / "cached.png").write_bytes(b"\x89PNG\r\n\x1a\n")
     first = client.get("/media/cached.png")
 
-    response = client.get("/media/cached.png", HTTP_IF_MODIFIED_SINCE=first["Last-Modified"])
+    response = client.get("/media/cached.png", HTTP_IF_NONE_MATCH=first["ETag"])
 
     assert response.status_code == 304
     assert response["X-Content-Type-Options"] == "nosniff"
@@ -129,7 +129,7 @@ def test_media_symlink_inside_root_is_served(client, settings, tmp_path, directo
     assert b"".join(response.streaming_content) == b"<svg/>"
     assert response["X-Content-Type-Options"] == "nosniff"
     assert response["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
-    cached = client.get(url, HTTP_IF_MODIFIED_SINCE=response["Last-Modified"])
+    cached = client.get(url, HTTP_IF_NONE_MATCH=response["ETag"])
     assert cached.status_code == 304
     assert cached["X-Content-Type-Options"] == "nosniff"
     assert cached["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
@@ -261,7 +261,7 @@ def test_media_not_modified_closes_opened_descriptor(client, settings, tmp_path,
     monkeypatch.setattr(media, "_open_regular_file", record_source)
     response = client.get("/media/logo.svg")
     response.close()
-    cached = client.get("/media/logo.svg", HTTP_IF_MODIFIED_SINCE=response["Last-Modified"])
+    cached = client.get("/media/logo.svg", HTTP_IF_NONE_MATCH=response["ETag"])
     assert cached.status_code == 304
     assert len(opened) == 2
     assert all(source.closed for source in opened)
@@ -336,3 +336,87 @@ def test_media_wrapper_failure_closes_all_descriptors(client, settings, tmp_path
         # Keep failing counterfactuals from leaking descriptors in the test runner.
         for descriptor in active:
             original_close(descriptor)
+
+
+@pytest.mark.parametrize("update", ["replace", "in_place"])
+def test_media_same_second_generation_revalidation(client, settings, tmp_path, monkeypatch, update):
+    import os
+
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    target = tmp_path / "logo.svg"
+    target.write_bytes(b"old logo")
+    second = 1800000000 * 10**9
+    os.utime(target, ns=(second, second + 123000000))
+    sources = []
+    original_open = media._open_regular_file
+
+    def record_open(path):
+        source, metadata = original_open(path)
+        sources.append(source)
+        return source, metadata
+
+    monkeypatch.setattr(media, "_open_regular_file", record_open)
+    first = client.get("/media/logo.svg")
+    try:
+        assert first.status_code == 200
+        old_tag, old_date = first["ETag"], first["Last-Modified"]
+        if update == "replace":
+            replacement = tmp_path / "new.svg"
+            replacement.write_bytes(b"new logo")
+            os.utime(replacement, ns=(second, second + 123000000))
+            replacement.replace(target)  # Same size and exact mtime, new inode.
+        else:
+            target.write_bytes(b"new logo")
+            os.utime(target, ns=(second, second + 456000000))
+        # Atomic replacement preserves the already-opened generation.
+        if update == "replace":
+            assert b"".join(first.streaming_content) == b"old logo"
+    finally:
+        first.close()
+    stale = client.get("/media/logo.svg", HTTP_IF_NONE_MATCH=old_tag, HTTP_IF_MODIFIED_SINCE=old_date)
+    try:
+        assert stale.status_code == 200
+        assert not sources[-1].closed
+        assert stale["Last-Modified"] == old_date
+        assert stale["ETag"] != old_tag
+        assert b"".join(stale.streaming_content) == b"new logo"
+    finally:
+        stale.close()
+    current_tag = stale["ETag"]
+    assert current_tag.startswith('W/"')
+    for candidate in [current_tag, current_tag.removeprefix("W/"), f'"stale", {current_tag}', "*"]:
+        current = client.get(
+            "/media/logo.svg",
+            HTTP_IF_NONE_MATCH=candidate,
+            HTTP_IF_MODIFIED_SINCE="Thu, 01 Jan 1970 00:00:00 GMT",
+        )
+        assert current.status_code == 304
+        assert sources[-1].closed
+        assert current["ETag"] == current_tag
+        assert current["Last-Modified"] == old_date
+        assert current["X-Content-Type-Options"] == "nosniff"
+        assert current["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+        current.close()
+    assert all(source.closed for source in sources)
+    assert stale["X-Content-Type-Options"] == "nosniff"
+    assert stale["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+
+
+@pytest.mark.parametrize("tag", [None, '"stale"', "malformed", ""])
+def test_media_date_only_cannot_hide_a_generation(client, settings, tmp_path, tag):
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"logo")
+    first = client.get("/media/logo.svg")
+    first.close()
+    headers = {"HTTP_IF_MODIFIED_SINCE": first["Last-Modified"]}
+    if tag is not None:
+        headers["HTTP_IF_NONE_MATCH"] = tag
+    response = client.get("/media/logo.svg", **headers)
+    try:
+        assert response.status_code == 200
+        assert response["ETag"] == first["ETag"]
+        assert b"".join(response.streaming_content) == b"logo"
+    finally:
+        response.close()

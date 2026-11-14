@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Revalidate media with opaque opened-file generation ETags, preserving validators
+  and hardening headers on 200/304; date-only requests conservatively return 200.
+- Limit admin logo uploads to 1 MiB using declared and actual byte checks;
+  preserve existing rows/logos on refusal and compensate partial storage copies.
+
 - Docs: the OpsGate tile is inactive in production since OpsGate's retirement
   (2026-11-10); `add_default_services` keeps that status on later deploys.
 - Close raw media descriptors when file-wrapper construction fails.

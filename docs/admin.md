@@ -113,6 +113,13 @@ replacement logo storage, and all-or-nothing quick-edit batches in CI.
 2. Select "Delete selected services" from actions
 3. Confirm deletion
 
+### Logo upload size
+
+Admin logo uploads must be at most **1 MiB (1,048,576 bytes)**. Oversize files
+produce a logo field error and preserve the existing service and logo. The
+[configuration guide](configuration.md#admin-logo-upload-budget) describes the
+actual-byte checks and their scope.
+
 ### Logo file cleanup
 
 Replacing or clearing a logo, or deleting services individually or in bulk,

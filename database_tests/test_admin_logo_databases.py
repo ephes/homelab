@@ -1,8 +1,11 @@
 """Admin logo ownership follows the routed write database, never default rows."""
 
+from contextlib import contextmanager
+from types import SimpleNamespace
+
 import pytest
 from django.contrib import admin
-from django.core.files.uploadedfile import InMemoryUploadedFile, SimpleUploadedFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.urls import reverse
@@ -114,12 +117,23 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
     if failure == "related":
         monkeypatch.setattr(admin.site._registry[Service], "save_related", fail)
     elif failure == "write":
+        original_open = storage.open
 
-        def chunks(self, chunk_size=None):
-            yield b"partial"
-            fail()
+        @contextmanager
+        def failing_open(name, mode="rb"):
+            with original_open(name, mode) as destination:
+                if mode == "wb":
+                    original_write = destination.write
 
-        monkeypatch.setattr(InMemoryUploadedFile, "chunks", chunks)
+                    def partial_write(chunk):
+                        original_write(chunk[:3])
+                        fail()
+
+                    yield SimpleNamespace(write=partial_write)
+                else:
+                    yield destination
+
+        monkeypatch.setattr(storage, "open", failing_open)
     else:
         post_save.connect(fail, sender=Service, weak=False)
     data = change_data(service)
