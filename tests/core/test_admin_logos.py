@@ -1,6 +1,7 @@
 """Logo retirement through real admin requests and database commits."""
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from types import SimpleNamespace
 
 import pytest
 from django.core.files.uploadedfile import InMemoryUploadedFile, SimpleUploadedFile
@@ -132,14 +133,23 @@ def test_failed_admin_upload_removes_only_new_file(admin_client, settings, tmp_p
     if failure == "related":
         monkeypatch.setattr(model_admin, "save_related", fail)
     elif failure == "write":
-        original_chunks = InMemoryUploadedFile.chunks
+        original_open = storage.open
 
-        def chunks(self, chunk_size=None):
-            yield b"partial"
-            fail()
-            yield from original_chunks(self, chunk_size)
+        @contextmanager
+        def failing_open(name, mode="rb"):
+            with original_open(name, mode) as destination:
+                if mode == "wb":
+                    original_write = destination.write
 
-        monkeypatch.setattr(InMemoryUploadedFile, "chunks", chunks)
+                    def partial_write(chunk):
+                        original_write(chunk[:3])
+                        fail()
+
+                    yield SimpleNamespace(write=partial_write)
+                else:
+                    yield destination
+
+        monkeypatch.setattr(storage, "open", failing_open)
     else:
         post_save.connect(fail, sender=Service, weak=False)
     url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
@@ -217,3 +227,158 @@ def test_post_commit_error_keeps_committed_upload(admin_client, settings, tmp_pa
     service = Service.objects.get(name="Committed")
     with service.logo_file.open("rb") as source:
         assert source.read() == b"new logo"
+
+
+@pytest.mark.parametrize("change", [False, True])
+@pytest.mark.parametrize("kind", ["declared", "lying_single", "lying_late", "boundary"])
+def test_admin_logo_byte_budget(admin_client, settings, tmp_path, monkeypatch, change, kind):
+    limit = 1024 * 1024
+    settings.MEDIA_ROOT = tmp_path
+    service = Service.objects.create(name="Original", logo_file=SimpleUploadedFile("old.svg", b"old logo"))
+    old_name, old_revision = service.logo_file.name, service.updated_at
+    storage = service.logo_file.storage
+    before = {path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()}
+    writes = []
+    original_open = storage.open
+
+    def record_open(name, mode="rb"):
+        if "w" in mode:
+            writes.append(name)
+        return original_open(name, mode)
+
+    monkeypatch.setattr(storage, "open", record_open)
+    chunks_seen = []
+    if kind.startswith("lying"):
+
+        def lying_chunks(self, chunk_size=None):
+            if kind == "lying_late":
+                chunks_seen.append("partial")
+                yield b"x" * (limit - 1)
+                yield b"xx"
+            else:
+                yield b"x" * (limit + 1)
+            chunks_seen.append("past limit")
+            pytest.fail("oversized input must not be consumed further")
+
+        monkeypatch.setattr(InMemoryUploadedFile, "chunks", lying_chunks)
+        payload = b"claimed small"
+    else:
+        payload = b"x" * (limit + (kind == "declared"))
+        if kind == "declared":
+
+            def unexpected_chunks(self, chunk_size=None):
+                pytest.fail("declared oversize must be rejected before reading chunks")
+
+            monkeypatch.setattr(InMemoryUploadedFile, "chunks", unexpected_chunks)
+    url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
+    response = admin_client.post(
+        url,
+        {
+            "name": "Changed" if change else "New",
+            "original_revision": old_revision.isoformat(),
+            "order": "1",
+            "is_active": "on",
+            "_save": "Save",
+            "logo_file": SimpleUploadedFile("new.svg", payload),
+        },
+    )
+    service.refresh_from_db()
+    if kind == "boundary":
+        assert response.status_code == 302
+        saved = service if change else Service.objects.get(name="New")
+        with saved.logo_file.open("rb") as source:
+            assert source.read() == payload
+        assert writes
+    else:
+        assert response.status_code == 200
+        assert "at most 1 MiB" in str(response.context["adminform"].form.errors["logo_file"])
+        assert not writes
+        assert service.name == "Original"
+        assert service.updated_at == old_revision
+        assert service.logo_file.name == old_name
+        assert Service.objects.count() == 1
+        assert {path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()} == before
+        with storage.open(old_name, "rb") as source:
+            assert source.read() == b"old logo"
+        assert "past limit" not in chunks_seen
+
+
+def test_admin_logo_copy_enforces_budget_after_reservation(settings, tmp_path, monkeypatch):
+    from django.contrib import admin
+    from django.core.exceptions import ValidationError
+    from django.test import RequestFactory
+
+    settings.MEDIA_ROOT = tmp_path
+    service = Service.objects.create(name="Original", logo_file=SimpleUploadedFile("old.svg", b"old logo"))
+    old_name, old_revision = service.logo_file.name, service.updated_at
+    storage = service.logo_file.storage
+    upload = SimpleUploadedFile("new.svg", b"claimed small")
+    writes = []
+    original_open = storage.open
+
+    class RecordingDestination:
+        def __init__(self, source):
+            self.source = source
+
+        def __enter__(self):
+            return self
+
+        def write(self, chunk):
+            writes.append(len(chunk))
+            return self.source.write(chunk)
+
+        def __exit__(self, *args):
+            self.source.close()
+
+    def record_open(name, mode="rb"):
+        source = original_open(name, mode)
+        return RecordingDestination(source) if mode == "wb" else source
+
+    def chunks(chunk_size=None):
+        yield b"x" * (1024 * 1024 - 1)
+        yield b"xx"
+        pytest.fail("must stop at the first excess chunk")
+
+    monkeypatch.setattr(upload, "chunks", chunks)
+    monkeypatch.setattr(storage, "open", record_open)
+    service.logo_file = upload
+    service.name = "Changed"
+    with pytest.raises(ValidationError, match="at most 1 MiB"):
+        admin.site._registry[Service].save_model(
+            RequestFactory().post("/"), service, SimpleNamespace(cleaned_data={"logo_file": upload}), True
+        )
+    assert writes == [1024 * 1024 - 1]
+    service.refresh_from_db()
+    assert (service.name, service.logo_file.name, service.updated_at) == ("Original", old_name, old_revision)
+    assert [path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()] == [old_name]
+
+
+@pytest.mark.parametrize("temporary", [False, True])
+def test_admin_saves_only_the_validated_logo_snapshot(admin_client, settings, monkeypatch, temporary):
+    from django.core.files.uploadedfile import TemporaryUploadedFile
+
+    if temporary:
+        settings.FILE_UPLOAD_MAX_MEMORY_SIZE = 0
+    calls = []
+
+    def changing_chunks(self, chunk_size=None):
+        calls.append(self)
+        assert len(calls) == 1, "saving must not replay the untrusted input"
+        yield b"checked logo"
+
+    monkeypatch.setattr(TemporaryUploadedFile if temporary else InMemoryUploadedFile, "chunks", changing_chunks)
+    response = admin_client.post(
+        reverse("admin:core_service_add"),
+        {
+            "name": "Snapshot",
+            "order": "0",
+            "is_active": "on",
+            "_save": "Save",
+            "logo_file": SimpleUploadedFile("new.svg", b"claimed small"),
+        },
+    )
+    assert response.status_code == 302
+    assert len(calls) == 1
+    service = Service.objects.get(name="Snapshot")
+    with service.logo_file.open("rb") as source:
+        assert source.read() == b"checked logo"

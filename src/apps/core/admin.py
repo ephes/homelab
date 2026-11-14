@@ -10,6 +10,8 @@ from django.db.models import F
 from .models import Service
 
 logger = logging.getLogger("homelab")
+MAX_LOGO_BYTES = 1024 * 1024
+LOGO_SIZE_ERROR = "Logo files must be at most 1 MiB (1,048,576 bytes)."
 
 
 class ServiceAdminForm(forms.ModelForm):
@@ -19,6 +21,23 @@ class ServiceAdminForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if not self.instance._state.adding:
             self.initial["original_revision"] = self.instance.updated_at.isoformat()
+
+    def clean_logo_file(self):
+        upload = self.cleaned_data.get("logo_file")
+        if not isinstance(upload, UploadedFile):
+            return upload
+        if upload.size > MAX_LOGO_BYTES:
+            raise forms.ValidationError(LOGO_SIZE_ERROR)
+        # Validate actual bytes before storage allocation, and keep a bounded
+        # snapshot so saving cannot replay a different/untrusted upload stream.
+        content = bytearray()
+        for chunk in upload.chunks():
+            if len(chunk) > MAX_LOGO_BYTES - len(content):
+                raise forms.ValidationError(LOGO_SIZE_ERROR)
+            content.extend(chunk)
+        return UploadedFile(
+            file=ContentFile(content), name=upload.name, content_type=upload.content_type, size=len(content)
+        )
 
     def clean(self):
         cleaned = super().clean()
@@ -112,7 +131,11 @@ class ServiceAdmin(admin.ModelAdmin):
                 )
                 allocated.append(name)
                 with storage.open(name, "wb") as destination:
+                    written = 0
                     for chunk in upload.chunks():
+                        written += len(chunk)
+                        if written > MAX_LOGO_BYTES:
+                            raise forms.ValidationError(LOGO_SIZE_ERROR)
                         destination.write(chunk)
                 obj.logo_file = name
             super().save_model(request, obj, form, change)

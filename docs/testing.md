@@ -445,6 +445,11 @@ source copies. Production `check --deploy` is a separate operator check.
 `uv run pytest tests/core/test_media.py` uses synthetic files and deterministic
 path replacements to check descriptor containment, regular-file identity,
 streaming after replacement, internal links and conditional/header behavior.
+Same-second atomic replacement (even with the same size and exact mtime) and
+in-place updates invalidate old ETags. Current weak/strong tag forms, tag lists
+and `*` return 304; stale/invalid tags and date-only requests return 200.
+Both statuses retain ETag, Last-Modified and hardening headers, and their opened
+descriptors close on the appropriate response path.
 Injected root-resolution failures must return 404 before any media file is opened;
 a subsequent request with the restored root must stream normally.
 Injected file-wrapper failures after a successful raw open must close every acquired
@@ -462,6 +467,13 @@ allocations are removed. This deterministic seam covers the stale-read window
 without relying on database-specific thread scheduling.
 After compensation, a reused name must survive a later seed failure: ownership
 ends at deletion, so rollback must not attempt that name a second time.
+
+`uv run pytest tests/core/test_admin_logos.py` covers declared oversize,
+misleading upload sizes with one large or several chunks, exact 1 MiB success
+on add/change, and rejection after a storage name has been reserved. Rejected
+form uploads must show a field error without changing the old row, revision or
+logo; the copy guard must never write the chunk that exceeds the budget and must
+remove its partial allocation.
 
 `uv run pytest tests/core/test_admin_conflicts.py` submits two valid quick edits,
 saves the first row, then triggers a real unique-constraint database failure on
