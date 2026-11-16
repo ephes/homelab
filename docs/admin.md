@@ -108,10 +108,28 @@ replacement logo storage, and all-or-nothing quick-edit batches in CI.
 2. Click "Delete" button
 3. Confirm deletion
 
+The single-service confirmation is signed and bound to the displayed revision,
+service ID, database and signed-in user. It expires after one hour and accepts
+at most 128 KiB of confirmation data. Missing, altered or stale confirmations
+return to the service list with a reload message before any audit entry, deletion
+or logo cleanup. Reload and open Delete again to inspect and confirm the current
+service. Pages opened before this protection was deployed must also be reloaded.
+The revision is claimed on the writer database under the deletion transaction;
+normal saves must advance `updated_at`, as described for editing above.
+
 **Bulk deletion**:
 1. Check boxes next to services
 2. Select "Delete selected services" from actions
 3. Confirm deletion
+
+Bulk confirmation uses the same signature, user/database binding, one-hour expiry
+and 128 KiB token limit. A batch contains at most **500 services**; narrow a larger
+selection first. The displayed ID/revision set is fixed even when using "Select
+all": services created later are not added to the confirmed batch. If any row
+changed or disappeared, or submitted IDs were omitted, added or duplicated, the
+whole batch is refused before audit entries, deletion or logo retirement. Reload,
+select the current services and inspect a new confirmation. Every row is claimed
+on the writer database in one transaction before any destructive effects.
 
 ### Logo upload size
 
@@ -131,8 +149,8 @@ writing an upload, saving its row, or saving related/admin records, the new uplo
 is removed after rollback. Names are reserved through storage before bytes are
 copied, so cleanup removes only this save's allocation, including partial writes;
 old and shared logos remain untouched. Reference checks and commit callbacks use
-the Service write database (or the deleted queryset's database for bulk deletes),
-so rows on another alias do not determine ownership. The two-alias regression
+the Service write database, including the writer-bound bulk queryset, so rows on
+another alias do not determine ownership. The two-alias regression
 command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or

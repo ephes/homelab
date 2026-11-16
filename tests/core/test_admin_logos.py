@@ -10,6 +10,7 @@ from django.urls import reverse
 
 from apps.core.admin import logger
 from apps.core.models import Service
+from tests.core.test_admin_deletion import bulk_confirmation, single_confirmation
 
 pytestmark = pytest.mark.django_db(transaction=True)
 
@@ -45,12 +46,11 @@ def test_admin_logo_retirement(admin_client, action, outcome):
                 data["logo_file-clear"] = "on"
             response = admin_client.post(reverse("admin:core_service_change", args=[service.pk]), data)
         elif action == "delete":
-            response = admin_client.post(reverse("admin:core_service_delete", args=[service.pk]), {"post": "yes"})
+            url, token = single_confirmation(admin_client, service)
+            response = admin_client.post(url, {"post": "yes", "service_delete_confirmation": token})
         else:
-            response = admin_client.post(
-                reverse("admin:core_service_changelist"),
-                {"action": "delete_selected", "_selected_action": selected, "post": "yes"},
-            )
+            url, data = bulk_confirmation(admin_client, list(Service.objects.filter(pk__in=selected)))
+            response = admin_client.post(url, data)
         assert response.status_code == 302
         assert storage.exists(name) == (outcome != "commit")
         if second_name:
@@ -98,10 +98,8 @@ def test_bulk_cleanup_failure_is_logged_and_other_files_are_removed(admin_client
         delete(name)
 
     monkeypatch.setattr(storage, "delete", failing_delete)
-    response = admin_client.post(
-        reverse("admin:core_service_changelist"),
-        {"action": "delete_selected", "_selected_action": [service.pk for service in services], "post": "yes"},
-    )
+    url, data = bulk_confirmation(admin_client, services)
+    response = admin_client.post(url, data)
     assert response.status_code == 302
     assert not Service.objects.exists()
     assert len(failed) == 1

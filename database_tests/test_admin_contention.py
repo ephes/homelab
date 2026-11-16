@@ -100,3 +100,69 @@ def test_overlapping_admin_saves_preserve_winner_and_entire_losing_batch(admin_c
         assert [
             p.relative_to(isolated_media_root).as_posix() for p in isolated_media_root.rglob("*") if p.is_file()
         ] == [services[1].logo_file.name]
+
+
+@pytest.mark.parametrize("mode", ["single", "bulk"])
+def test_deletion_waits_for_edit_and_rejects_stale_confirmation(admin_client, mode):
+    from django.contrib.admin.models import LogEntry
+
+    from tests.core.test_admin_deletion import bulk_confirmation, single_confirmation
+
+    services = [Service.objects.create(name=name) for name in ["First", "Second"]]
+    service = services[1]
+    if mode == "single":
+        delete_url, token = single_confirmation(admin_client, service)
+        delete_data = {"post": "yes", "service_delete_confirmation": token}
+    else:
+        delete_url, delete_data = bulk_confirmation(admin_client, services)
+    change_url = reverse("admin:core_service_change", args=[service.pk])
+    revision = admin_client.get(change_url).context["adminform"].form.initial["original_revision"]
+    edit_data = {
+        "name": service.name,
+        "url": "https://winner.example/",
+        "order": "9",
+        "original_revision": revision,
+        "logo_file": SimpleUploadedFile("winner.svg", b"winner"),
+        "_save": "Save",
+    }
+    clients = [Client(raise_request_exception=False), Client(raise_request_exception=False)]
+    for client in clients:
+        client.force_login(get_user_model().objects.get(username="admin"))
+    locked, release, attempted, entered = Event(), Event(), Event(), Event()
+
+    def submit(index, url, data):
+        def at_write(execute, sql, params, many, context):
+            if index == 1 and sql.startswith("BEGIN"):
+                attempted.set()
+            result = execute(sql, params, many, context)
+            if index == 1 and sql.startswith("BEGIN"):
+                entered.set()
+            if index == 0 and sql.startswith('UPDATE "core_service" SET "updated_at" ='):
+                locked.set()
+                assert release.wait(10)
+            return result
+
+        try:
+            with connection.execute_wrapper(at_write):
+                return clients[index].post(url, data).status_code
+        finally:
+            connections.close_all()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        winner = pool.submit(submit, 0, change_url, edit_data)
+        try:
+            assert locked.wait(10)
+            deletion = pool.submit(submit, 1, delete_url, delete_data)
+            assert attempted.wait(10)
+            assert not entered.wait(0.2)
+            assert not deletion.done()
+        finally:
+            release.set()
+        assert winner.result(timeout=15) == 302
+        assert deletion.result(timeout=15) == 302
+    service.refresh_from_db()
+    assert service.url == "https://winner.example/"
+    assert service.order == 9
+    assert service.logo_file.read() == b"winner"
+    assert Service.objects.count() == 2
+    assert not LogEntry.objects.filter(action_flag=3).exists()
