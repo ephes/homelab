@@ -1,16 +1,27 @@
 import logging
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core import signing
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
 from django.db import router, transaction
 from django.db.models import F
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 
 from .models import Service
 
 logger = logging.getLogger("homelab")
 MAX_LOGO_BYTES = 1024 * 1024
+MAX_DELETE_CONFIRMATION_BYTES = 128 * 1024
+DELETE_CONFIRMATION_SALT = "core.service.delete.v1"
+
+
+class DeleteConfirmationConflict(Exception):
+    pass
+
+
 LOGO_SIZE_ERROR = "Logo files must be at most 1 MiB (1,048,576 bytes)."
 
 
@@ -59,6 +70,7 @@ class ServiceAdminForm(forms.ModelForm):
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
     form = ServiceAdminForm
+    delete_confirmation_template = "admin/core/service/delete_confirmation.html"
     change_list_template = "admin/core/service/change_list.html"
     list_display = ["name", "url", "is_active", "order", "created_at"]
     list_filter = ["is_active", "created_at"]
@@ -66,6 +78,72 @@ class ServiceAdmin(admin.ModelAdmin):
     ordering = ["order", "name"]
     list_editable = ["order", "is_active"]
     fields = ["name", "description", "url", "icon", "logo_file", "is_active", "order", "original_revision"]
+
+    def get_queryset(self, request):
+        queryset = super().get_queryset(request)
+        if hasattr(request, "_service_delete_using"):
+            return queryset.using(request._service_delete_using)
+        return queryset
+
+    def _delete_payload(self, request, objects, using, mode):
+        return {
+            "mode": mode,
+            "database": using,
+            "user": str(request.user.pk),
+            "rows": [[str(obj.pk), obj.updated_at.isoformat()] for obj in objects],
+        }
+
+    def _sign_delete_confirmation(self, request, objects, using, mode):
+        return signing.dumps(self._delete_payload(request, objects, using, mode), salt=DELETE_CONFIRMATION_SALT)
+
+    def _claim_delete_confirmation(self, request, objects, using, mode):
+        tokens = request.POST.getlist("service_delete_confirmation")
+        if len(tokens) != 1 or len(tokens[0]) > MAX_DELETE_CONFIRMATION_BYTES:
+            raise DeleteConfirmationConflict
+        try:
+            payload = signing.loads(tokens[0], salt=DELETE_CONFIRMATION_SALT, max_age=3600)
+        except (signing.BadSignature, ValueError, TypeError):
+            raise DeleteConfirmationConflict from None
+        if payload != self._delete_payload(request, objects, using, mode):
+            raise DeleteConfirmationConflict
+        for obj in objects:
+            # Claim each displayed revision before audit/deletion/storage effects.
+            # A no-op UPDATE also locks SQLite writers until transaction exit.
+            if (
+                not self.model.objects.using(using)
+                .filter(pk=obj.pk, updated_at=obj.updated_at)
+                .update(updated_at=F("updated_at"))
+            ):
+                raise DeleteConfirmationConflict
+
+    def _delete_conflict(self, request):
+        self.message_user(
+            request,
+            "Deletion confirmation changed, expired or is invalid. Reload and confirm the current services again.",
+            messages.ERROR,
+        )
+        return HttpResponseRedirect(reverse("admin:core_service_changelist", current_app=self.admin_site.name))
+
+    def delete_view(self, request, object_id, extra_context=None):
+        using = router.db_for_write(self.model)
+        request._service_delete_using = using
+        try:
+            response = super().delete_view(request, object_id, extra_context)
+            if request.method in {"GET", "HEAD"} and hasattr(response, "context_data"):
+                obj = response.context_data["object"]
+                response.context_data["service_delete_confirmation"] = self._sign_delete_confirmation(
+                    request, [obj], using, "single"
+                )
+            return response
+        except DeleteConfirmationConflict:
+            return self._delete_conflict(request)
+        finally:
+            del request._service_delete_using
+
+    def log_deletions(self, request, queryset):
+        if hasattr(request, "_service_delete_using"):
+            self._claim_delete_confirmation(request, list(queryset), request._service_delete_using, "single")
+        return super().log_deletions(request, queryset)
 
     def get_changelist_form(self, request, **kwargs):
         return super().get_changelist_form(request, form=ServiceAdminForm, **kwargs)

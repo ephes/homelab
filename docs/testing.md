@@ -503,6 +503,12 @@ not introduce a new runtime routing policy. To check sensitivity, temporarily
 route retirement reference checks, on-commit registration or failed-upload
 reference checks to `default`: the corresponding tests must fail.
 
+`uv run pytest tests/core/test_admin_deletion.py` covers real single-service
+confirmation requests, stale URL/logo edits, missing/tampered/oversized tokens,
+user binding and expiry. Refusals preserve rows, files and audit entries; a new
+confirmation succeeds. The two-database logo lane also confirms the writer row
+when the read router points at a conflicting default-database sentinel.
+
 ### Locked Python dependency audit
 
 CI's separate, ten-minute audit job exports the frozen runtime graph and all

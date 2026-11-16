@@ -11,6 +11,7 @@ from django.db.models.signals import post_save
 from django.urls import reverse
 
 from apps.core.models import Service
+from tests.core.test_admin_deletion import single_confirmation
 
 pytestmark = pytest.mark.django_db(transaction=True, databases=["default", "secondary"])
 
@@ -64,7 +65,8 @@ def test_retirement_uses_secondary_commit_and_references(admin_client, action, o
                 data["logo_file-clear"] = "on"
             response = admin_client.post(reverse("admin:core_service_change", args=[service.pk]), data)
         elif action == "delete":
-            response = admin_client.post(reverse("admin:core_service_delete", args=[service.pk]), {"post": "yes"})
+            url, token = single_confirmation(admin_client, service)
+            response = admin_client.post(url, {"post": "yes", "service_delete_confirmation": token})
         else:
             response = admin_client.post(
                 reverse("admin:core_service_changelist"),
@@ -186,4 +188,24 @@ def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monke
     service = Service.objects.get(name="Committed secondary")
     with service.logo_file.open("rb") as source:
         assert source.read() == b"new logo"
+    assert default_rows() == before
+
+
+def test_single_confirmation_reads_and_claims_writer(admin_client, settings):
+    class SplitRouter(SecondaryServiceRouter):
+        def db_for_read(self, model, **hints):
+            return "default" if model is Service else None
+
+    settings.DATABASE_ROUTERS = [SplitRouter()]
+    service = Service.objects.using("secondary").create(name="Writer")
+    Service.objects.using("default").create(pk=service.pk, name="Reader sentinel")
+    before = default_rows()
+    url, token = single_confirmation(admin_client, service)
+    service.name = "New writer generation"
+    service.save(using="secondary")
+    admin_client.post(url, {"post": "yes", "service_delete_confirmation": token})
+    assert Service.objects.using("secondary").filter(pk=service.pk).exists()
+    url, token = single_confirmation(admin_client, service)
+    assert admin_client.post(url, {"post": "yes", "service_delete_confirmation": token}).status_code == 302
+    assert not Service.objects.using("secondary").filter(pk=service.pk).exists()
     assert default_rows() == before

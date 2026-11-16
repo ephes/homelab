@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bind single-service admin deletion to a signed, expiring displayed revision;
+  refuse stale or invalid confirmations before audit entries and logo cleanup.
+
 - Update the documentation parser lock to SoupSieve 4.1 and BeautifulSoup 4.15.0
   for the SoupSieve denial-of-service advisories, including CVE-2026-126190.
   The existing Python 3.12 minimum satisfies SoupSieve's Python 3.11.5 floor.

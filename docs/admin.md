@@ -108,6 +108,15 @@ replacement logo storage, and all-or-nothing quick-edit batches in CI.
 2. Click "Delete" button
 3. Confirm deletion
 
+The single-service confirmation is signed and bound to the displayed revision,
+service ID, database and signed-in user. It expires after one hour and accepts
+at most 128 KiB of confirmation data. Missing, altered or stale confirmations
+return to the service list with a reload message before any audit entry, deletion
+or logo cleanup. Reload and open Delete again to inspect and confirm the current
+service. Pages opened before this protection was deployed must also be reloaded.
+The revision is claimed on the writer database under the deletion transaction;
+normal saves must advance `updated_at`, as described for editing above.
+
 **Bulk deletion**:
 1. Check boxes next to services
 2. Select "Delete selected services" from actions
