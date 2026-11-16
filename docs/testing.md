@@ -498,16 +498,22 @@ A router sends Service reads/writes to `secondary`, while users/admin records
 remain on `default`. Conflicting default rows and shared synthetic storage names
 exercise replacement, clearing, individual/bulk deletion, delayed commit cleanup,
 rollback, retained references, partial/failed uploads and post-commit compensation.
-Default rows must remain unchanged. This tests existing alias behavior; it does
-not introduce a new runtime routing policy. To check sensitivity, temporarily
+Default rows must remain unchanged. These checks preserve logo ownership on the
+writer alias. To check sensitivity, temporarily
 route retirement reference checks, on-commit registration or failed-upload
 reference checks to `default`: the corresponding tests must fail.
 
 `uv run pytest tests/core/test_admin_deletion.py` covers real single-service
 confirmation requests, stale URL/logo edits, missing/tampered/oversized tokens,
-user binding and expiry. Refusals preserve rows, files and audit entries; a new
-confirmation succeeds. The two-database logo lane also confirms the writer row
-when the read router points at a conflicting default-database sentinel.
+user binding and expiry. Bulk requests also cover all-or-nothing refusal when a
+row changes/disappears or IDs are omitted/added/duplicated, signed journey binding,
+the 500-service limit and a fixed select-all snapshot. Refusals preserve rows,
+files and audit entries; a new confirmation succeeds. The two-database logo lane
+confirms writer rows when the read router points at conflicting default-database
+sentinels and refuses confirmation reuse on another alias. The contention lane
+also overlaps an admin edit with each deletion journey: the deletion waits for
+the edit to commit, then refuses its stale confirmation without retiring the new
+logo or writing a deletion audit entry.
 
 ### Locked Python dependency audit
 

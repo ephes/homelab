@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bind bulk admin deletion to one signed set of at most 500 displayed service
+  revisions on the writer database; refuse the whole batch on changed/missing
+  rows or altered selections before audit entries or logo cleanup.
+
 - Bind single-service admin deletion to a signed, expiring displayed revision;
   refuse stale or invalid confirmations before audit entries and logo cleanup.
 
