@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replace the retired MinIO tile with RustFS: the default services offer `RustFS`
+  (RustFS logo, no link because RustFS has no web console; the description names
+  the S3 API `s3.home…`), and migration `0018_replace_minio_with_rustfs` turns an
+  installed MinIO tile that still links to the MinIO console into it, keeping
+  owner edits, active status and order. The unused `minio.png` seed logo is gone.
+
 - Refuse media files with more than one hard link (404, also for conditional
   requests), so a second name inside `MEDIA_ROOT` cannot expose an outside file.
 - Retire every directory and file descriptor exactly once when a `close()` fails

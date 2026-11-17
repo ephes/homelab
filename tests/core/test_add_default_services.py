@@ -10,6 +10,12 @@ from django.db import IntegrityError
 
 from apps.core.models import Service
 
+LOGOS = Path(__file__).resolve().parents[2] / "src" / "apps" / "core" / "static" / "core" / "logos"
+RUSTFS_DESCRIPTION = (
+    "S3-compatible object storage (RustFS on Fractal) for backups and application data. "
+    "S3 API at https://s3.home.xn--wersdrfer-47a.de/ (LAN and Tailnet, signed requests only, no web console)"
+)
+
 
 def test_add_default_services_includes_opsgate():
     call_command("add_default_services")
@@ -422,3 +428,43 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatc
         with storage.open(name, "rb") as source:
             assert source.read() == content == b"synthetic logo"
     assert "Removed logo file" not in stderr.getvalue()
+
+
+# --- RustFS replaces the retired MinIO tile ------------------------------------------
+
+
+def test_add_default_services_offers_rustfs_not_minio(logo_dir):
+    call_command("add_default_services", stdout=StringIO())
+
+    assert not Service.objects.filter(name="MinIO").exists()
+    rustfs = Service.objects.get(name="RustFS")
+    assert rustfs.description == RUSTFS_DESCRIPTION
+    assert rustfs.url == ""
+    assert rustfs.icon == "fas fa-database"
+    assert rustfs.is_active is True
+    assert rustfs.order == 8
+    assert Path(rustfs.logo_file.name).name.startswith("rustfs")
+    with rustfs.logo_file.open("rb") as stored:
+        assert stored.read() == (LOGOS / "rustfs.png").read_bytes()
+
+
+def test_rustfs_seed_matches_the_replacement_migration():
+    from importlib import import_module
+
+    migration = import_module("apps.core.migrations.0018_replace_minio_with_rustfs")
+
+    assert migration.RUSTFS["description"] == RUSTFS_DESCRIPTION
+    assert migration.RUSTFS["url"] == ""
+    assert migration.RUSTFS["icon"] == "fas fa-database"
+
+
+def test_renamed_minio_tile_gets_the_rustfs_logo_on_reseed(logo_dir):
+    # The state the replacement migration leaves: the former MinIO row, renamed,
+    # without a logo, keeping its owner-managed order and status.
+    Service.objects.create(name="RustFS", description=RUSTFS_DESCRIPTION, icon="fas fa-database", order=8)
+
+    call_command("add_default_services", stdout=StringIO())
+
+    rustfs = Service.objects.get(name="RustFS")
+    assert Path(rustfs.logo_file.name).name.startswith("rustfs")
+    assert not Service.objects.filter(name="MinIO").exists()

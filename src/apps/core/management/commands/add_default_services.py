@@ -73,11 +73,17 @@ class Command(BaseCommand):
                 "order": 7,
             },
             {
-                "name": "MinIO",
-                "description": "S3-compatible object storage for backups and data archiving",
-                "url": "https://minio.home.xn--wersdrfer-47a.de/",
+                # MinIO was retired on 2026-11-17; migration 0018 turns its tile
+                # into this one. RustFS has no web console, so there is no link.
+                "name": "RustFS",
+                "description": (
+                    "S3-compatible object storage (RustFS on Fractal) for backups and application data. "
+                    "S3 API at https://s3.home.xn--wersdrfer-47a.de/ "
+                    "(LAN and Tailnet, signed requests only, no web console)"
+                ),
+                "url": "",
                 "icon": "fas fa-database",
-                "logo_filename": "minio.png",
+                "logo_filename": "rustfs.png",
                 "order": 8,
             },
             {

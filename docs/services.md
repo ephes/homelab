@@ -155,6 +155,19 @@ OpsGate was retired on 2026-11-10 (stopped, data kept): its production tile is s
 inactive (`is_active=false`) and, because the command keeps the active status of an
 existing service, stays hidden across deploys. The seed entry is unchanged, so only a
 fresh installation would create it (active).
+MinIO was retired on 2026-11-17; RustFS on Fractal is the only S3 store. The seed
+entry `MinIO` is replaced by `RustFS` (logo `rustfs.png`, icon `fas fa-database`,
+no link: RustFS runs without a web console, so the description names the S3 API
+`https://s3.home.xn--wersdrfer-47a.de/`, LAN and Tailnet only). Migration
+`0018_replace_minio_with_rustfs` turns an installed MinIO tile into the RustFS tile,
+narrowly guarded: only a tile named `MinIO` that still links to the retired console
+`https://minio.home.xn--wersdrfer-47a.de/` changes. Its name and URL are replaced, its
+description and icon only while they are the old seed values, and its logo reference is
+cleared only while it names a seeded `minio*.png` copy, so the next
+`add_default_services` run fills the RustFS logo. Active status and order stay. If a
+`RustFS` tile already exists, the MinIO tile is only set inactive. The stored MinIO logo
+file stays in `MEDIA_ROOT/services/logos/` (unreferenced), and the reverse migration
+keeps the replacement.
 After copying a missing logo, the command reloads the service under a database
 lock and saves only the logo and revision. Owner edits made during copying are
 preserved. If another writer has supplied a logo, that logo wins and the command

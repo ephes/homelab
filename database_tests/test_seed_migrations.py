@@ -105,3 +105,112 @@ def test_historical_webui_update_uses_secondary_connection(at_initial):
     migrate("secondary", before)
     assert rows(model, "default") == default_before
     assert rows(model, "secondary") == secondary_after
+
+
+MINIO_RETIRED = {
+    "name": "MinIO",
+    "description": "S3-compatible object storage for backups and data archiving",
+    "url": "https://minio.home.xn--wersdrfer-47a.de/",
+    "icon": "fas fa-database",
+    "logo_file": "services/logos/minio.png",
+    "is_active": True,
+    "order": 8,
+}
+REPLACEMENT = ("core", "0018_replace_minio_with_rustfs")
+BEFORE_REPLACEMENT = [("core", "0017_merge_20260505_1239")]
+
+
+def replacement_fields():
+    from importlib import import_module
+
+    return import_module("apps.core.migrations.0018_replace_minio_with_rustfs").RUSTFS
+
+
+def before_replacement():
+    model = migrate("secondary", BEFORE_REPLACEMENT)
+    for alias in ("default", "secondary"):  # Drop the rows of the earlier seeds.
+        model.objects.using(alias).all().delete()
+    return model
+
+
+def minio_tile(model, alias, **changes):
+    return model.objects.using(alias).create(**{**MINIO_RETIRED, **changes})
+
+
+def replace(model):
+    default_before = rows(model, "default")
+    migrate("secondary", [REPLACEMENT])
+    assert rows(model, "default") == default_before  # Only the migration connection changes.
+    after = rows(model, "secondary")
+    migrate("secondary", BEFORE_REPLACEMENT)
+    assert rows(model, "secondary") == after  # The reverse keeps the replacement.
+    assert rows(model, "default") == default_before
+    return after
+
+
+@pytest.mark.parametrize("logo", ["services/logos/minio.png", "services/logos/minio_Ab3dE9x.png"])
+def test_retired_minio_tile_becomes_rustfs(at_initial, logo):
+    model = before_replacement()
+    for alias in ("default", "secondary"):
+        tile_pk = minio_tile(model, alias, logo_file=logo, is_active=False, order=41).pk
+
+    replace(model)
+
+    tile = model.objects.using("secondary").get(pk=tile_pk)
+    assert tile.name == "RustFS"
+    assert tile.description == replacement_fields()["description"]
+    assert tile.url == ""
+    assert tile.icon == "fas fa-database"
+    assert tile.logo_file.name == ""  # add_default_services fills the RustFS logo.
+    assert (tile.is_active, tile.order) == (False, 41)  # Owner-managed fields stay.
+
+
+def test_owner_description_icon_and_logo_survive_the_replacement(at_initial):
+    model = before_replacement()
+    tile_pk = minio_tile(
+        model,
+        "secondary",
+        description="Owner text",
+        icon="owner-icon",
+        logo_file="services/logos/owner-storage.svg",
+    ).pk
+
+    replace(model)
+
+    tile = model.objects.using("secondary").get(pk=tile_pk)
+    assert (tile.name, tile.url) == ("RustFS", "")
+    assert (tile.description, tile.icon, tile.logo_file.name) == (
+        "Owner text",
+        "owner-icon",
+        "services/logos/owner-storage.svg",
+    )
+
+
+def test_minio_tile_with_an_owner_url_is_left_alone(at_initial):
+    model = before_replacement()
+    minio_tile(model, "secondary", url="https://owner.example/storage/")
+    before = rows(model, "secondary")
+
+    assert replace(model) == before
+
+
+def test_existing_rustfs_tile_only_hides_the_retired_minio_tile(at_initial):
+    model = before_replacement()
+    minio_tile(model, "secondary")
+    customize(model, "secondary", "RustFS")
+    rustfs_before = model.objects.using("secondary").filter(name="RustFS").values().get()
+
+    replace(model)
+
+    assert model.objects.using("secondary").filter(name="RustFS").values().get() == rustfs_before
+    minio = model.objects.using("secondary").get(name="MinIO")
+    assert minio.is_active is False
+    assert minio.url == MINIO_RETIRED["url"]
+
+
+def test_replacement_without_a_minio_tile_changes_nothing(at_initial):
+    model = before_replacement()
+    customize(model, "secondary", "Unrelated secondary")
+    before = rows(model, "secondary")
+
+    assert replace(model) == before
