@@ -183,6 +183,23 @@ USE_TZ = True
 
 ### Security Settings
 
+#### Login throttle
+
+```python
+AUTHENTICATION_BACKENDS = [
+    "apps.core.login_throttle.LoginThrottleBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+HOMELAB_LOGIN_FAILURE_LIMIT = 5          # per username and client address; 0 disables
+HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT = 30 # per client address, all usernames
+HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS = 900
+```
+
+Each username/password attempt is charged against both budgets before the
+password is checked, in one SQLite write transaction; a successful login
+refunds it. `ModelBackend` stays listed only so sessions created before the
+throttle stay valid; failed attempts never reach it. See [admin](admin.md).
+
 #### Password Validators
 ```python
 AUTH_PASSWORD_VALIDATORS = [
@@ -243,7 +260,13 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 X_FRAME_OPTIONS = "DENY"
+CSRF_TRUSTED_ORIGINS = []
 ```
+
+`CSRF_TRUSTED_ORIGINS` is empty on purpose: requests from the site itself pass
+Django's Origin check without an entry. A wildcard such as
+`https://*.home.example` would let a sibling subdomain that sets a `csrftoken`
+cookie on the parent domain forge admin requests.
 
 ### Static Files Storage
 

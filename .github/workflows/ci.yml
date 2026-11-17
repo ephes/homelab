@@ -55,8 +55,8 @@ jobs:
         run: uv run python manage.py check
       - name: Missing migrations
         run: uv run python manage.py makemigrations --check --dry-run
-      - name: Real SQLite admin contention
-        run: uv run pytest database_tests/test_admin_contention.py --create-db
+      - name: Real SQLite admin and login-throttle contention
+        run: uv run pytest database_tests/test_admin_contention.py database_tests/test_login_throttle_contention.py --create-db
       - name: Applied migrations on a fresh database
         run: uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
       - name: Seed migration routing and ownership

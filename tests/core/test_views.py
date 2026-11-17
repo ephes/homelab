@@ -167,3 +167,28 @@ class TestConnectionInfoView:
     def test_raw_header_is_still_shown_for_debugging(self, client):
         response = self.get(client, xff="100.100.1.1, 8.8.4.4")
         assert response.context["forwarded_for"] == "100.100.1.1, 8.8.4.4"
+
+
+def test_third_party_assets_are_pinned_by_subresource_integrity(client):
+    """A compromised CDN must not be able to restyle pages or read the logout form's CSRF token."""
+    from html.parser import HTMLParser
+
+    class Assets(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.external = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            url = attrs.get("src") if tag == "script" else attrs.get("href") if tag == "link" else None
+            if url and url.startswith(("https://", "http://", "//")):
+                self.external.append(attrs)
+
+    parser = Assets()
+    parser.feed(client.get(reverse("core:home")).content.decode())
+
+    assert parser.external, "the page is expected to load Font Awesome from the CDN"
+    for attrs in parser.external:
+        assert (attrs.get("integrity") or "").startswith(("sha384-", "sha512-")), attrs
+        assert attrs.get("crossorigin") == "anonymous", attrs
+        assert attrs.get("referrerpolicy") == "no-referrer", attrs

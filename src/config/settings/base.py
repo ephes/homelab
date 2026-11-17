@@ -116,6 +116,19 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Failed-login budgets for the admin login (apps.core.login_throttle). Both
+# count failures over a fixed window: per username and client address, and per
+# client address for all usernames. A limit of 0 disables the throttle.
+AUTHENTICATION_BACKENDS = [
+    "apps.core.login_throttle.LoginThrottleBackend",
+    # Keeps sessions created before the throttle valid; never reached for a
+    # password check, because the throttle refuses failed attempts outright.
+    "django.contrib.auth.backends.ModelBackend",
+]
+HOMELAB_LOGIN_FAILURE_LIMIT = 5
+HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT = 30
+HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 LANGUAGE_CODE = "en-us"

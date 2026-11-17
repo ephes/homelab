@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Limit failed admin logins: 5 per username and client address and 30 per
+  client address within 15 minutes (`apps.core.login_throttle`, migration
+  `0019_login_throttle_bucket`). LAN and Tailscale clients reach the admin login
+  without Traefik basic auth, so password guessing was unlimited. Attempts are
+  charged atomically before the password check; the client address is the one
+  Traefik appended to `X-Forwarded-For`, IPv6 counts per /64. Existing sessions
+  stay valid.
+- Production trusts no extra CSRF origins: the `https://*.home.wersdoerfer.de`
+  wildcard (and its host entry) is gone; same-origin requests never needed it.
+- Pin the Font Awesome stylesheet from cdnjs with Subresource Integrity
+  (`crossorigin="anonymous"`, `referrerpolicy="no-referrer"`), so a changed CDN
+  file cannot restyle pages or read the logout form's CSRF token.
+
 - Replace the retired MinIO tile with RustFS: the default services offer `RustFS`
   (RustFS logo, no link because RustFS has no web console; the description names
   the S3 API `s3.home…`), and migration `0018_replace_minio_with_rustfs` turns an

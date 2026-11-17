@@ -553,7 +553,7 @@ usage is safe.
 These required CI steps run separately from the fast model-sync suite:
 
 ```bash
-UV_FROZEN=1 uv run pytest database_tests/test_admin_contention.py --create-db
+UV_FROZEN=1 uv run pytest database_tests/test_admin_contention.py database_tests/test_login_throttle_contention.py --create-db
 UV_FROZEN=1 uv run pytest database_tests/test_applied_migrations.py --migrations --create-db
 UV_FROZEN=1 uv run python -m pytest database_tests/test_seed_migrations.py --ds=database_tests.settings --migrations --create-db
 ```
@@ -570,6 +570,9 @@ holding the winner at its conditional UPDATE until the second request attempts
 its transaction. It requires a saved winner, a visible loser conflict, no mixed
 fields or orphan logos, and no partially saved quick-edit batch. Removing the
 validation transaction or SQLite's `IMMEDIATE` mode breaks this protection.
+The same lane sends parallel failed admin logins from one address and requires
+that every budget ends exactly at its limit, so concurrent workers cannot
+overrun the login throttle.
 
 The applied-migration lane overrides pytest's default `--no-migrations` and
 `--reuse-db`, executes every committed operation on a fresh database, checks the

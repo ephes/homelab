@@ -15,6 +15,9 @@ The config uses the dual router pattern:
 
 The same credentials protect the other `*.home` services on macmini.
 
+Because internal clients skip basic auth, the Django admin login limits failed
+logins itself (see [admin](admin.md#failed-login-limit)).
+
 ## Credentials and rotation
 
 The password is stored in ops-control `secrets/prod/traefik.yml`

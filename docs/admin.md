@@ -10,6 +10,24 @@ This guide covers using Django's admin interface to manage Homelab.
 2. Enter your superuser credentials
 3. Click "Log in"
 
+### Failed-login limit
+
+Failed logins are limited (`apps.core.login_throttle`), because LAN and
+Tailscale clients reach the admin login without Traefik basic auth:
+
+- 5 failures per username and client address within 15 minutes;
+- 30 failures per client address, for all usernames, within 15 minutes.
+
+Once a budget is used up, every login from that address (for that username, or
+for all usernames) is refused with the usual "Please enter the correct username
+and password" message, even with the correct password, until the 15-minute
+window ends. Other addresses are not affected. A successful login clears the
+username budget for its address. The client address is the one Traefik
+appended to `X-Forwarded-For`; IPv6 addresses count per /64 network. The limits
+are the `HOMELAB_LOGIN_*` settings in `config/settings/base.py`
+(see [settings](settings.md)); the budgets live in the `LoginThrottleBucket`
+table and expire on their own.
+
 ### First-Time Setup
 
 If you haven't created a superuser yet:

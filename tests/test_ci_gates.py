@@ -130,7 +130,8 @@ def test_workflow_requires_executed_database_lanes():
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     steps = workflow["jobs"]["python"]["steps"]
     for command in [
-        "uv run pytest database_tests/test_admin_contention.py --create-db",
+        "uv run pytest database_tests/test_admin_contention.py database_tests/test_login_throttle_contention.py "
+        "--create-db",
         "uv run pytest database_tests/test_applied_migrations.py --migrations --create-db",
         "uv run python -m pytest database_tests/test_seed_migrations.py "
         "--ds=database_tests.settings --migrations --create-db",

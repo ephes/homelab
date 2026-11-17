@@ -27,11 +27,10 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 X_FRAME_OPTIONS = "DENY"
 
-# CSRF - Trust the reverse proxy
-CSRF_TRUSTED_ORIGINS = [
-    "https://home.wersdoerfer.de",
-    "https://*.home.wersdoerfer.de",
-]
+# CSRF: no extra trusted origins. Requests from the site itself pass the Origin
+# check without one (Traefik sets X-Forwarded-Proto). A wildcard here would let a
+# sibling subdomain that tosses a csrftoken cookie forge admin requests.
+CSRF_TRUSTED_ORIGINS = []
 
 # Static files - use Whitenoise for production
 STORAGES = {

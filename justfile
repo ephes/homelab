@@ -17,9 +17,9 @@ dev:
 test:
     uv run pytest
 
-# Run real file-backed SQLite admin contention tests
+# Run real file-backed SQLite admin and login-throttle contention tests
 test-contention:
-    uv run pytest database_tests/test_admin_contention.py --create-db
+    uv run pytest database_tests/test_admin_contention.py database_tests/test_login_throttle_contention.py --create-db
 
 # Apply every committed migration to a fresh isolated database
 test-migrations:
