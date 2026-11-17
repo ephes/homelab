@@ -16,6 +16,11 @@ response is locked down:
 Paths resolving outside ``MEDIA_ROOT`` are rejected; internal symlinks are
 supported by resolving them once, then walking the canonical path without
 following links. Only the verified opened regular file is streamed.
+
+Every descriptor acquired while opening has exactly one owner at a time and is
+retired at most once. ``close()`` may release a descriptor even when it reports
+an error, so a failed close is never retried; on a failure path, cleanup errors
+never replace the original failure.
 """
 
 import mimetypes
@@ -34,41 +39,78 @@ from django.utils.http import http_date, parse_etags
 MEDIA_CONTENT_SECURITY_POLICY = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 
 
+_DIRECTORY_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+_FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+def _retire_descriptor(descriptor):
+    """Close a descriptor once on a failure path, keeping the caller's error."""
+    try:
+        os.close(descriptor)
+    except OSError:
+        # The number may already be released; retrying could close a reused fd.
+        pass
+
+
+def _retire_file(owner):
+    """Close a file object once on a failure path, keeping the caller's error."""
+    try:
+        owner.close()
+    except OSError:
+        # FileIO marks itself closed before close(2), so it never retries.
+        pass
+
+
+def _open_raw_file(path):
+    """Return a ``FileIO`` owning ``path``, opened without following links."""
+    # Walk from the filesystem anchor, including MEDIA_ROOT's ancestors, so
+    # O_NOFOLLOW protects every component rather than just the final filename.
+    directory = os.open(path.anchor, _DIRECTORY_FLAGS)
+    try:
+        for part in path.parts[1:-1]:
+            child = os.open(part, _DIRECTORY_FLAGS, dir_fd=directory)
+            # Transfer ownership before retiring the parent: if close() fails,
+            # the parent is gone either way and only the child remains ours.
+            parent, directory = directory, child
+            os.close(parent)
+        descriptor = os.open(path.name, _FILE_FLAGS, dir_fd=directory)
+        try:
+            raw = FileIO(descriptor, "rb")
+        except BaseException:
+            # FileIO leaves a supplied descriptor open if construction fails.
+            _retire_descriptor(descriptor)
+            raise
+    except BaseException:
+        _retire_descriptor(directory)
+        raise
+    try:
+        os.close(directory)
+    except BaseException:
+        # The directory close was attempted once; only the file is still ours.
+        _retire_file(raw)
+        raise
+    return raw
+
+
 def _open_regular_file(path):
     """Open a canonical path without following replacement links (POSIX)."""
     expected = path.stat()
     if not stat.S_ISREG(expected.st_mode):
         raise Http404("Media path is not a regular file")
-    # Walk from the filesystem anchor, including MEDIA_ROOT's ancestors, so
-    # O_NOFOLLOW protects every component rather than just the final filename.
-    directory = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        for part in path.parts[1:-1]:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
-        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-    finally:
-        os.close(directory)
-    try:
-        raw = FileIO(descriptor, "rb")
-    except BaseException:
-        # FileIO leaves a supplied descriptor open if construction fails.
-        os.close(descriptor)
-        raise
+    raw = _open_raw_file(path)
     try:
         source = BufferedReader(raw)
     except BaseException:
         # A wrapper may already have closed raw during failed construction;
         # closing the owning object again is safe even if the fd was reused.
-        raw.close()
+        _retire_file(raw)
         raise
     try:
         opened = os.fstat(source.fileno())
         if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(expected, opened):
             raise Http404("Media file changed while opening")
     except BaseException:
-        source.close()
+        _retire_file(source)
         raise
     return source, opened
 

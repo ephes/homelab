@@ -155,6 +155,12 @@ replacement symlinks. The opened descriptor must identify the same regular file
 that was checked; changed identities and directories return 404. Streaming,
 content length and conditional modification times use this descriptor without
 reopening the pathname. A stable internal link keeps its ordinary 200/304 behavior.
+
+Each directory and file descriptor acquired while opening has exactly one owner
+and is closed once. A failing `close()` is never retried, because the descriptor
+number may already be released and reused; the file is not served and the original
+failure is kept (an `OSError` becomes 404).
+
 This does not freeze in-place writes to an already opened file; restrict filesystem
 write access to trusted processes.
 

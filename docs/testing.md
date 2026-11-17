@@ -458,6 +458,12 @@ first to `FileIO`, then to `BufferedReader`; failed buffer construction closes t
 owning file object even if the buffer already closed it. Normal responses retain
 their source until closed. Tests record open/close ownership directly, without
 platform-specific descriptor enumeration.
+One-shot `close()` failures while transferring from a parent to a child directory,
+and when retiring the last directory after the file opened, must retire every new
+descriptor exactly once, keep the original failure (`OSError` → 404, other errors
+propagate unchanged) and never close a number the request no longer owns; the
+injected close releases the descriptor first, as Linux does after `EINTR`/`EIO`.
+A later request without injection streams normally.
 It does not inspect platform-specific descriptor paths or use timing races.
 
 `uv run pytest tests/core/test_add_default_services.py` also interleaves a real
