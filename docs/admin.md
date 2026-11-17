@@ -16,14 +16,19 @@ Failed logins are limited (`apps.core.login_throttle`), because LAN and
 Tailscale clients reach the admin login without Traefik basic auth:
 
 - 5 failures per username and client address within 15 minutes;
-- 30 failures per client address, for all usernames, within 15 minutes.
+- 30 failures per client address, for all usernames, within 15 minutes;
+- 100 failures per IPv6 /64 network within 15 minutes, because one client can
+  use any number of addresses in its /64. Tailscale addresses
+  (`fd7a:115c:a1e0::/48`) have no network budget: each node has one address,
+  which Tailscale authenticates.
 
 Once a budget is used up, every login from that address (for that username, or
 for all usernames) is refused with the usual "Please enter the correct username
 and password" message, even with the correct password, until the 15-minute
 window ends. Other addresses are not affected. A successful login clears the
 username budget for its address. The client address is the one Traefik
-appended to `X-Forwarded-For`; IPv6 addresses count per /64 network. The limits
+appended to `X-Forwarded-For`. The username and address budgets use the exact
+address, so one LAN device cannot lock out the others. The limits
 are the `HOMELAB_LOGIN_*` settings in `config/settings/base.py`
 (see [settings](settings.md)); the budgets live in the `LoginThrottleBucket`
 table and expire on their own.

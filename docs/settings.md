@@ -192,10 +192,11 @@ AUTHENTICATION_BACKENDS = [
 ]
 HOMELAB_LOGIN_FAILURE_LIMIT = 5          # per username and client address; 0 disables
 HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT = 30 # per client address, all usernames
+HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT = 100 # per IPv6 /64, except Tailscale addresses
 HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS = 900
 ```
 
-Each username/password attempt is charged against both budgets before the
+Each username/password attempt is charged against every budget before the
 password is checked, in one SQLite write transaction; a successful login
 refunds it. `ModelBackend` stays listed only so sessions created before the
 throttle stay valid; failed attempts never reach it. See [admin](admin.md).

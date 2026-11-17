@@ -8,6 +8,7 @@ from django.urls import reverse
 LIMITS = {
     "HOMELAB_LOGIN_FAILURE_LIMIT": 3,
     "HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT": 5,
+    "HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT": 7,
     "HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS": 900,
 }
 PASSWORD = "correct horse battery staple"  # pragma: allowlist secret
@@ -80,7 +81,9 @@ def test_refused_attempt_does_not_verify_the_password(owner, monkeypatch):
     import django.contrib.auth.base_user as base_user
 
     original = base_user.check_password
-    monkeypatch.setattr(base_user, "check_password", lambda *args, **kwargs: calls.append(1) or original(*args, **kwargs))
+    monkeypatch.setattr(
+        base_user, "check_password", lambda *args, **kwargs: calls.append(1) or original(*args, **kwargs)
+    )
 
     assert not login("192.168.178.50")
     assert calls == []
@@ -108,13 +111,28 @@ def test_only_the_address_traefik_appended_counts(owner):
     assert not login("192.168.178.50")
 
 
-def test_ipv6_addresses_in_one_slash64_share_a_budget(owner):
-    fail("fd50:3e45:c454:0::1", 1)
-    fail("fd50:3e45:c454:0::2", 1)
-    fail("fd50:3e45:c454:0:aaaa::3", 1)
+def test_one_lan_ipv6_device_cannot_lock_out_the_others(owner):
+    # Every LAN device shares the ULA /64; the username budget is per address.
+    fail("fd50:3e45:c454:0::1", 3)
 
-    assert not login("fd50:3e45:c454:0::4")
-    assert login("fd50:3e45:c454:1::4")
+    assert not login("fd50:3e45:c454:0::1")
+    assert login("fd50:3e45:c454:0::2")
+
+
+def test_rotating_addresses_in_one_ipv6_slash64_exhausts_the_network_budget(owner):
+    for host in range(1, 8):
+        fail(f"2001:db8:1:2::{host}", 1)
+
+    assert not login("2001:db8:1:2::99")
+    assert login("2001:db8:1:3::99")
+
+
+def test_tailscale_ipv6_addresses_have_no_shared_network_budget(owner):
+    # All tailnet nodes share one /64, but each node's address is authenticated.
+    for host in range(1, 9):
+        fail(f"fd7a:115c:a1e0::{host}", 1)
+
+    assert login("fd7a:115c:a1e0::99")
 
 
 def test_ipv4_mapped_address_counts_as_the_ipv4_address(owner):
@@ -142,4 +160,5 @@ def test_default_limits():
 
     assert base.HOMELAB_LOGIN_FAILURE_LIMIT == 5
     assert base.HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT == 30
+    assert base.HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT == 100
     assert base.HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS == 15 * 60
