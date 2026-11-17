@@ -15,7 +15,9 @@ response is locked down:
 
 Paths resolving outside ``MEDIA_ROOT`` are rejected; internal symlinks are
 supported by resolving them once, then walking the canonical path without
-following links. Only the verified opened regular file is streamed.
+following links. Only the verified opened regular file is streamed, and only
+if it has exactly one hard link: a second name could make a file from outside
+``MEDIA_ROOT`` look like media without any symlink to resolve.
 
 Every descriptor acquired while opening has exactly one owner at a time and is
 retired at most once. ``close()`` may release a descriptor even when it reports
@@ -93,7 +95,7 @@ def _open_raw_file(path):
 
 
 def _open_regular_file(path):
-    """Open a canonical path without following replacement links (POSIX)."""
+    """Open a canonical single-link regular file without following replacement links (POSIX)."""
     expected = path.stat()
     if not stat.S_ISREG(expected.st_mode):
         raise Http404("Media path is not a regular file")
@@ -109,6 +111,10 @@ def _open_regular_file(path):
         opened = os.fstat(source.fileno())
         if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(expected, opened):
             raise Http404("Media file changed while opening")
+        # Admit only files whose sole name is the verified media path: another
+        # hard link may live outside MEDIA_ROOT without any symlink to resolve.
+        if opened.st_nlink != 1:
+            raise Http404("Media file has additional hard links")
     except BaseException:
         _retire_file(source)
         raise

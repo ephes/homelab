@@ -586,3 +586,42 @@ def test_media_directory_close_failure_retires_each_descriptor_once(
     finally:
         ledger.release_leaks()
 
+
+@pytest.mark.parametrize("conditional", [False, True])
+@pytest.mark.parametrize("other_link", ["outside", "inside"])
+def test_media_hard_linked_file_is_refused(client, settings, tmp_path, monkeypatch, other_link, conditional):
+    from config import media
+
+    root = tmp_path / "media"
+    logos = root / "services" / "logos"
+    logos.mkdir(parents=True)
+    settings.MEDIA_ROOT = root
+    sentinel = b"hard-link canary"
+    canary = (tmp_path / "outside-canary.svg") if other_link == "outside" else (logos / "original.svg")
+    canary.write_bytes(sentinel)
+    os.link(canary, logos / "linked.svg")
+    headers = {"HTTP_IF_NONE_MATCH": "*"} if conditional else {}
+    ledger = DescriptorLedger(media)
+    try:
+        with monkeypatch.context() as patch:
+            ledger.install(patch)
+            response = client.get("/media/services/logos/linked.svg", **headers)
+            body = b"".join(response.streaming_content) if response.streaming else response.content
+            response.close()
+        assert response.status_code == 404
+        assert sentinel not in body
+        ledger.assert_balanced()
+    finally:
+        ledger.release_leaks()
+
+    # Removing the second name restores an ordinary single-link logo.
+    canary.unlink()
+    served = client.get("/media/services/logos/linked.svg")
+    try:
+        assert served.status_code == 200
+        assert b"".join(served.streaming_content) == sentinel
+        cached = client.get("/media/services/logos/linked.svg", HTTP_IF_NONE_MATCH=served["ETag"])
+        assert cached.status_code == 304
+        assert cached["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+    finally:
+        served.close()

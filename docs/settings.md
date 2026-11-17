@@ -156,6 +156,14 @@ that was checked; changed identities and directories return 404. Streaming,
 content length and conditional modification times use this descriptor without
 reopening the pathname. A stable internal link keeps its ordinary 200/304 behavior.
 
+Only single-link regular files are served. If the opened file has more than one
+hard link (`st_nlink != 1`), the request returns 404, also for conditional
+requests: a second name could expose a file from outside `MEDIA_ROOT` without any
+symlink to resolve. Uploaded and seeded logos are ordinary single-link files.
+Media restored or copied by hand must not use hard links (`cp -l`, `rsync -H`
+or `--link-dest` into the live media tree); remove the extra name to serve the
+file again.
+
 Each directory and file descriptor acquired while opening has exactly one owner
 and is closed once. A failing `close()` is never retried, because the descriptor
 number may already be released and reused; the file is not served and the original

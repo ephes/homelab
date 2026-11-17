@@ -464,6 +464,10 @@ descriptor exactly once, keep the original failure (`OSError` → 404, other err
 propagate unchanged) and never close a number the request no longer owns; the
 injected close releases the descriptor first, as Linux does after `EINTR`/`EIO`.
 A later request without injection streams normally.
+A real temporary hard link (to a canary outside `MEDIA_ROOT`, or to a second name
+inside it) returns 404 for plain and `If-None-Match: *` requests, without canary
+bytes and with every descriptor closed; after removing the other name the same
+file serves 200 and revalidates with 304.
 It does not inspect platform-specific descriptor paths or use timing races.
 
 `uv run pytest tests/core/test_add_default_services.py` also interleaves a real

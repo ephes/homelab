@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refuse media files with more than one hard link (404, also for conditional
+  requests), so a second name inside `MEDIA_ROOT` cannot expose an outside file.
 - Retire every directory and file descriptor exactly once when a `close()` fails
   while opening media; never retry a released number and keep the original error.
 
