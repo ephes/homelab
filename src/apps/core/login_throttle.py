@@ -4,8 +4,8 @@ These budgets apply to every username/password attempt, each over a fixed window
 
 - ``HOMELAB_LOGIN_FAILURE_LIMIT`` failures per username and client address;
 - ``HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT`` failures per client address, for all usernames;
-- ``HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT`` failures per IPv6 /64 network, for all
-  addresses in it except Tailscale's (fd7a:115c:a1e0::/48).
+- ``HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT`` failures per IPv4 /24 or IPv6 /64 network, for
+  all addresses in it, except Tailscale addresses (100.64.0.0/10, fd7a:115c:a1e0::/48).
 
 An attempt is charged against every budget before the password is checked, in one
 SQLite write transaction, so concurrent workers cannot exceed a budget. A successful
@@ -19,11 +19,11 @@ loopback port) ``REMOTE_ADDR`` is used. IPv4-mapped IPv6 addresses count as thei
 address.
 
 The username and address budgets use the exact address, so a few failures on one LAN
-device (all LAN IPv6 devices share one /64) do not lock out the others. One client can
-however pick any number of addresses in its /64; the higher network budget bounds that,
-and once it is used up every address in that /64 is refused until the window ends (IPv4
-and Tailscale logins are unaffected). Tailscale assigns each node one address that WireGuard authenticates, and all
-tailnet nodes share a /64, so tailnet addresses get no network budget.
+device do not lock out the others. One client can however take many addresses in its
+network (IPv4 aliases in the /24, any number of IPv6 addresses in its /64); the higher
+network budget bounds that, and once it is used up every address in that network is
+refused until the window ends. Tailscale assigns each node one address that WireGuard
+authenticates, so tailnet addresses get no network budget and stay usable.
 """
 
 import hashlib
@@ -41,8 +41,8 @@ from django.db.models import F
 from .models import LoginThrottleBucket
 
 MAX_USERNAME = 150  # longer names are cut for the key; they cannot belong to an account
-IPV6_NETWORK_PREFIX = 64
-TAILSCALE_IPV6 = ipaddress.ip_network("fd7a:115c:a1e0::/48")
+NETWORK_PREFIX = {4: 24, 6: 64}
+TAILSCALE_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("fd7a:115c:a1e0::/48"))
 EXPIRED_ROWS_PER_ATTEMPT = 100
 
 
@@ -69,14 +69,14 @@ def throttle_address(address: str) -> str:
 
 
 def throttle_network(address: str) -> str | None:
-    """The /64 a (non-Tailscale) IPv6 address shares a network budget with, else None."""
+    """The /24 (IPv4) or /64 (IPv6) whose budget a non-Tailscale address shares, else None."""
     try:
         ip = ipaddress.ip_address(address)
     except ValueError:
         return None
-    if not isinstance(ip, ipaddress.IPv6Address) or ip in TAILSCALE_IPV6:
+    if any(ip in network for network in TAILSCALE_NETWORKS):
         return None
-    return str(ipaddress.IPv6Network((ip, IPV6_NETWORK_PREFIX), strict=False))
+    return str(ipaddress.ip_network((ip, NETWORK_PREFIX[ip.version]), strict=False))
 
 
 def _digest(value: str) -> str:

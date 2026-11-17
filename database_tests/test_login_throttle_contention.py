@@ -39,4 +39,5 @@ def test_parallel_failures_are_charged_atomically():
             statuses = list(pool.map(attempt, range(ATTEMPTS)))
 
     assert statuses == [200] * ATTEMPTS  # the login form re-renders with an error
-    assert sorted(LoginThrottleBucket.objects.values_list("failures", flat=True)) == [LIMIT, LIMIT]
+    # One row each for the /24 network, the address and the username/address pair.
+    assert sorted(LoginThrottleBucket.objects.values_list("failures", flat=True)) == [LIMIT, LIMIT, LIMIT]

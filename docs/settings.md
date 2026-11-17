@@ -192,7 +192,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 HOMELAB_LOGIN_FAILURE_LIMIT = 5          # per username and client address; 0 disables
 HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT = 30 # per client address, all usernames
-HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT = 100 # per IPv6 /64, except Tailscale addresses
+HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT = 100 # per IPv4 /24 or IPv6 /64, except Tailscale
 HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS = 900
 ```
 

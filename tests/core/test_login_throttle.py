@@ -1,4 +1,4 @@
-"""Failed admin logins are limited per username and address, per address, and per IPv6 /64."""
+"""Failed admin logins are limited per username and address, per address, and per network."""
 
 import pytest
 from django.contrib.auth import get_user_model
@@ -125,6 +125,21 @@ def test_rotating_addresses_in_one_ipv6_slash64_exhausts_the_network_budget(owne
 
     assert not login("2001:db8:1:2::99")
     assert login("2001:db8:1:3::99")
+
+
+def test_rotating_addresses_in_one_ipv4_slash24_exhausts_the_network_budget(owner):
+    for host in range(1, 8):
+        fail(f"192.168.178.{host}", 1)
+
+    assert not login("192.168.178.99")
+    assert login("192.168.179.99")
+
+
+def test_tailscale_ipv4_addresses_have_no_shared_network_budget(owner):
+    for host in range(1, 9):
+        fail(f"100.100.1.{host}", 1)
+
+    assert login("100.100.1.99")
 
 
 def test_tailscale_ipv6_addresses_have_no_shared_network_budget(owner):

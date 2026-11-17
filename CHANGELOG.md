@@ -3,13 +3,13 @@
 ## Unreleased
 
 - Limit failed admin logins within 15 minutes: 5 per username and client
-  address, 30 per client address and 100 per IPv6 /64 network (Tailscale
-  addresses excepted) (`apps.core.login_throttle`, migration
+  address, 30 per client address and 100 per network (IPv4 /24, IPv6 /64;
+  Tailscale addresses excepted) (`apps.core.login_throttle`, migration
   `0019_login_throttle_bucket`). LAN and Tailscale clients reach the admin login
   without Traefik basic auth, so password guessing was unlimited. Attempts are
   charged atomically before the password check; the client address is the one
   Traefik appended to `X-Forwarded-For`. A used-up network budget refuses every
-  address in that /64 (IPv4 and Tailscale logins still work). Existing sessions
+  address in that network (Tailscale logins still work). Existing sessions
   stay valid.
 - Production trusts no extra CSRF origins: the `https://*.home.wersdoerfer.de`
   wildcard (and its host entry) is gone; same-origin requests never needed it.

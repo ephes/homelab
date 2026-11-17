@@ -118,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Failed-login budgets for the admin login (apps.core.login_throttle). Each
 # counts failures over a fixed window: per username and client address, per
-# client address, and per IPv6 /64 (except Tailscale addresses).
+# client address, and per IPv4 /24 or IPv6 /64 (except Tailscale addresses).
 # HOMELAB_LOGIN_FAILURE_LIMIT = 0 disables the throttle.
 AUTHENTICATION_BACKENDS = [
     "apps.core.login_throttle.LoginThrottleBackend",
