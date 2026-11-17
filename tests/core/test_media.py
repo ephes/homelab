@@ -1,3 +1,5 @@
+import errno
+import os
 from pathlib import Path
 
 import pytest
@@ -455,3 +457,171 @@ def test_media_if_none_match_ignored_for_unsafe_methods(client, settings, tmp_pa
     response = client.post("/media/logo.svg", HTTP_IF_NONE_MATCH=first["ETag"])
     assert response.status_code != 304
     response.close()
+
+
+class DescriptorLedger:
+    """Record every descriptor ``config.media`` acquires and every retirement.
+
+    Raw descriptors are retired through ``os.close``; wrapped ones through the
+    ``FileIO`` owner. Closing a number the ledger does not own is recorded as
+    foreign and never reaches the OS, because that number may already belong to
+    an unrelated file.
+    """
+
+    def __init__(self, media):
+        self.media = media
+        self.original_open, self.original_close = media.os.open, media.os.close
+        self.acquired, self.active, self.foreign = [], {}, []
+        self.on_close = None
+        self.on_open = None
+        ledger = self
+
+        class TrackedFileIO(media.FileIO):
+            def close(self):
+                if not self.closed:
+                    descriptor = self.fileno()
+                    super().close()
+                    ledger.retire(descriptor)
+                else:
+                    super().close()
+
+        self.file_io = TrackedFileIO
+
+    def open(self, path, flags, *args, **kwargs):
+        descriptor = self.original_open(path, flags, *args, **kwargs)
+        assert descriptor not in self.active
+        record = {"descriptor": descriptor, "path": path, "closes": 0}
+        self.acquired.append(record)
+        self.active[descriptor] = record
+        if self.on_open:
+            self.on_open(descriptor, path, kwargs.get("dir_fd"))
+        return descriptor
+
+    def retire(self, descriptor):
+        record = self.active.pop(descriptor, None)
+        if record is None:
+            self.foreign.append(descriptor)
+            return False
+        record["closes"] += 1
+        return True
+
+    def close(self, descriptor):
+        if not self.retire(descriptor):
+            raise OSError(errno.EBADF, "descriptor is not owned by this request")
+        self.original_close(descriptor)
+        if self.on_close:
+            self.on_close(descriptor)
+
+    def install(self, patch):
+        patch.setattr(self.media.os, "open", self.open)
+        patch.setattr(self.media.os, "close", self.close)
+        patch.setattr(self.media, "FileIO", self.file_io)
+
+    def assert_balanced(self):
+        assert not self.active
+        assert not self.foreign
+        assert self.acquired and all(record["closes"] == 1 for record in self.acquired)
+
+    def release_leaks(self):
+        # Keep failing counterfactuals from leaking descriptors in the test runner.
+        for descriptor in list(self.active):
+            self.original_close(descriptor)
+
+
+@pytest.mark.parametrize("stage", ["transfer", "final"])
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError])
+def test_media_directory_close_failure_retires_each_descriptor_once(
+    client, settings, tmp_path, monkeypatch, error_type, stage
+):
+    from config import media
+
+    root = tmp_path / "media"
+    (root / "services" / "logos").mkdir(parents=True)
+    settings.MEDIA_ROOT = root
+    (root / "services" / "logos" / "logo.svg").write_bytes(b"synthetic logo")
+    ledger = DescriptorLedger(media)
+    error = error_type("synthetic directory close failure")
+    failures, request = [], {}
+
+    def note_file_parent(descriptor, path, dir_fd):
+        if path == "logo.svg":
+            request["file_parent"] = dir_fd
+
+    def fail_once(descriptor):
+        # The descriptor is already released, as after close() reports EINTR/EIO
+        # on Linux: retrying the number could close an unrelated reused file.
+        if not request.get("armed"):
+            return
+        transfer = stage == "transfer" and "file_parent" not in request
+        final = stage == "final" and descriptor == request.get("file_parent")
+        if transfer or final:
+            request["armed"] = False
+            failures.append(descriptor)
+            raise error
+
+    ledger.on_open, ledger.on_close = note_file_parent, fail_once
+    try:
+        with monkeypatch.context() as patch:
+            ledger.install(patch)
+            for _ in range(2):
+                request.clear()
+                request["armed"] = True
+                if error_type is OSError:
+                    assert client.get("/media/services/logos/logo.svg").status_code == 404
+                else:
+                    with pytest.raises(error_type) as caught:
+                        client.get("/media/services/logos/logo.svg")
+                    assert caught.value is error
+                assert not ledger.active
+                assert not ledger.foreign
+            request.clear()
+            response = client.get("/media/services/logos/logo.svg")
+            try:
+                assert response.status_code == 200
+                assert b"".join(response.streaming_content) == b"synthetic logo"
+            finally:
+                response.close()
+        assert len(failures) == 2
+        ledger.assert_balanced()
+    finally:
+        ledger.release_leaks()
+
+
+@pytest.mark.parametrize("conditional", [False, True])
+@pytest.mark.parametrize("other_link", ["outside", "inside"])
+def test_media_hard_linked_file_is_refused(client, settings, tmp_path, monkeypatch, other_link, conditional):
+    from config import media
+
+    root = tmp_path / "media"
+    logos = root / "services" / "logos"
+    logos.mkdir(parents=True)
+    settings.MEDIA_ROOT = root
+    sentinel = b"hard-link canary"
+    canary = (tmp_path / "outside-canary.svg") if other_link == "outside" else (logos / "original.svg")
+    canary.write_bytes(sentinel)
+    os.link(canary, logos / "linked.svg")
+    headers = {"HTTP_IF_NONE_MATCH": "*"} if conditional else {}
+    ledger = DescriptorLedger(media)
+    try:
+        with monkeypatch.context() as patch:
+            ledger.install(patch)
+            response = client.get("/media/services/logos/linked.svg", **headers)
+            body = b"".join(response.streaming_content) if response.streaming else response.content
+            response.close()
+        assert response.status_code == 404
+        assert sentinel not in body
+        ledger.assert_balanced()
+    finally:
+        ledger.release_leaks()
+
+    # Removing the second name restores an ordinary single-link logo.
+    canary.unlink()
+    served = client.get("/media/services/logos/linked.svg")
+    try:
+        assert served.status_code == 200
+        assert b"".join(served.streaming_content) == sentinel
+        cached = client.get("/media/services/logos/linked.svg", HTTP_IF_NONE_MATCH=served["ETag"])
+        assert cached.status_code == 304
+        assert cached["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+    finally:
+        served.close()

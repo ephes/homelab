@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Refuse media files with more than one hard link (404, also for conditional
+  requests), so a second name inside `MEDIA_ROOT` cannot expose an outside file.
+- Retire every directory and file descriptor exactly once when a `close()` fails
+  while opening media; never retry a released number and keep the original error.
+
 - Bind bulk admin deletion to one signed set of at most 500 displayed service
   revisions on the writer database; refuse the whole batch on changed/missing
   rows or altered selections before audit entries or logo cleanup.

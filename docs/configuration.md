@@ -121,7 +121,8 @@ Direct ORM/storage writes and built-in seed assets do not pass through this form
 
 ## Media revalidation
 
-Django serves media from verified opened regular-file descriptors with `nosniff`
+Django serves media from verified opened single-link regular-file descriptors
+(see [Settings](settings.md); hard-linked files return 404) with `nosniff`
 and a sandbox Content Security Policy, including conditional responses. Each
 response carries `Last-Modified` and an opaque weak `ETag` derived from the opened
 file's device, inode, size and nanosecond modification/change timestamps. The tag
