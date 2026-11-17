@@ -1,4 +1,4 @@
-"""Failed admin logins are limited per username and client address, and per client address."""
+"""Failed admin logins are limited per username and address, per address, and per IPv6 /64."""
 
 import pytest
 from django.contrib.auth import get_user_model

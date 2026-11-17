@@ -8,7 +8,9 @@
   `0019_login_throttle_bucket`). LAN and Tailscale clients reach the admin login
   without Traefik basic auth, so password guessing was unlimited. Attempts are
   charged atomically before the password check; the client address is the one
-  Traefik appended to `X-Forwarded-For`. Existing sessions stay valid.
+  Traefik appended to `X-Forwarded-For`. A used-up network budget refuses every
+  address in that /64 (IPv4 and Tailscale logins still work). Existing sessions
+  stay valid.
 - Production trusts no extra CSRF origins: the `https://*.home.wersdoerfer.de`
   wildcard (and its host entry) is gone; same-origin requests never needed it.
 - Pin the Font Awesome stylesheet from cdnjs with Subresource Integrity

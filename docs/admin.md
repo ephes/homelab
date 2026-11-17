@@ -22,13 +22,19 @@ Tailscale clients reach the admin login without Traefik basic auth:
   (`fd7a:115c:a1e0::/48`) have no network budget: each node has one address,
   which Tailscale authenticates.
 
-Once a budget is used up, every login from that address (for that username, or
-for all usernames) is refused with the usual "Please enter the correct username
-and password" message, even with the correct password, until the 15-minute
-window ends. Other addresses are not affected. A successful login clears the
-username budget for its address. The client address is the one Traefik
-appended to `X-Forwarded-For`. The username and address budgets use the exact
-address, so one LAN device cannot lock out the others. The limits
+Once a budget is used up, every login it covers is refused with the usual
+"Please enter the correct username and password" message, even with the correct
+password, until the 15-minute window ends: from that address for that username,
+from that address for all usernames, or from every address in that IPv6 /64.
+The client address is the one Traefik appended to `X-Forwarded-For`. A
+successful login clears the username budget for its address.
+
+The username and address budgets use the exact address, so a few failures on
+one LAN device do not lock out the others. The network budget is shared on
+purpose: all IPv6 devices on the LAN use one /64, so a LAN device that keeps
+failing from 4 or more addresses can lock every LAN IPv6 client out of the
+admin login for the rest of the window (and again in the next one). Logins over
+IPv4 or Tailscale are not affected; use them, or wait for the window to end. The limits
 are the `HOMELAB_LOGIN_*` settings in `config/settings/base.py`
 (see [settings](settings.md)); the budgets live in the `LoginThrottleBucket`
 table and expire on their own.

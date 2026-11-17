@@ -7,7 +7,7 @@ These budgets apply to every username/password attempt, each over a fixed window
 - ``HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT`` failures per IPv6 /64 network, for all
   addresses in it except Tailscale's (fd7a:115c:a1e0::/48).
 
-An attempt is charged against both budgets before the password is checked, in one
+An attempt is charged against every budget before the password is checked, in one
 SQLite write transaction, so concurrent workers cannot exceed a budget. A successful
 login refunds its charge and clears the username/address budget. An attempt that is
 over a budget is refused without checking the password.
@@ -18,10 +18,11 @@ left are client-supplied and ignored. Without the header (direct access to the
 loopback port) ``REMOTE_ADDR`` is used. IPv4-mapped IPv6 addresses count as their IPv4
 address.
 
-The username and address budgets use the exact address, so one device on the LAN (whose
-IPv6 devices share one /64) cannot lock other devices out after a few failures. One
-client can however pick any number of addresses in its /64; the higher network budget
-bounds that. Tailscale assigns each node one address that WireGuard authenticates, and all
+The username and address budgets use the exact address, so a few failures on one LAN
+device (all LAN IPv6 devices share one /64) do not lock out the others. One client can
+however pick any number of addresses in its /64; the higher network budget bounds that,
+and once it is used up every address in that /64 is refused until the window ends (IPv4
+and Tailscale logins are unaffected). Tailscale assigns each node one address that WireGuard authenticates, and all
 tailnet nodes share a /64, so tailnet addresses get no network budget.
 """
 
@@ -122,7 +123,7 @@ def _charge(request, username: str) -> tuple[str, tuple[tuple[str, float], ...]]
 
 
 def _refund(charge) -> None:
-    """Undo a successful attempt's charge and clear its username/address budget."""
+    """Refund a successful attempt's charge to every budget; clear its username/address budget."""
     alias, charged = charge
     buckets = LoginThrottleBucket.objects.using(alias)
     with transaction.atomic(using=alias):
