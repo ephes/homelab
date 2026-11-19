@@ -271,8 +271,16 @@ class Command(BaseCommand):
         # become permanent when the transaction commits. Remember every file this
         # run stores so a failed run can take them back out again.
         stored_logo_names: list[str] = []
+        messages: list[str] = []
         logo_storage = Service._meta.get_field("logo_file").storage
         using = router.db_for_write(Service)
+
+        def report_success():
+            for message in messages:
+                self.stdout.write(self.style.SUCCESS(message))
+            total = Service.objects.using(using).count()
+            self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
+
         try:
             with transaction.atomic(using=using):
                 for service_data in services:
@@ -313,18 +321,17 @@ class Command(BaseCommand):
                             else:
                                 service.logo_file.name = reserved_name
                                 service.save(using=using, update_fields=["logo_file", "updated_at"])
-                                self.stdout.write(self.style.SUCCESS(f"Added logo for {service.name}"))
+                                messages.append(f"Added logo for {service.name}")
 
                     status = "Created" if created else "Kept"
-                    self.stdout.write(self.style.SUCCESS(f"{status} service: {service.name}"))
+                    messages.append(f"{status} service: {service.name}")
+
+                transaction.on_commit(report_success, using=using)
         except BaseException:
             # An on_commit callback can fail after rows have committed. Only
             # compensate allocations verified unreferenced on the write DB.
             self._remove_stored_logos(logo_storage, stored_logo_names, using)
             raise
-
-        total = Service.objects.using(using).count()
-        self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
 
     def _remove_stored_logos(self, storage, names: list[str], using: str) -> None:
         for name in names:

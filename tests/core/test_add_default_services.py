@@ -6,7 +6,7 @@ import pytest
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management import call_command
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 from apps.core.models import Service
 
@@ -212,15 +212,30 @@ def fail_logo_save_on_call(monkeypatch, failing_call):
     return calls
 
 
-def test_failed_logo_save_removes_logos_stored_by_the_same_run(logo_dir, monkeypatch):
-    calls = fail_logo_save_on_call(monkeypatch, failing_call=3)
-
-    with pytest.raises(OSError, match="storage is full"):
-        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+@pytest.mark.django_db(transaction=True)
+def test_failed_logo_save_rolls_back_without_success_output(logo_dir, monkeypatch):
+    stdout, stderr = StringIO(), StringIO()
+    with monkeypatch.context() as patch:
+        calls = fail_logo_save_on_call(patch, failing_call=3)
+        with pytest.raises(OSError, match="storage is full"):
+            call_command("add_default_services", stdout=stdout, stderr=stderr)
 
     assert len(calls) == 3
     assert Service.objects.count() == 0
     assert stored_logos(logo_dir) == []
+    assert stderr.getvalue().count("Removed logo file") == 2
+    assert stdout.getvalue() == ""
+
+    with transaction.atomic():
+        call_command("add_default_services", stdout=stdout, stderr=stderr)
+        assert stdout.getvalue() == ""
+
+    output = stdout.getvalue().splitlines()
+    for service in Service.objects.all():
+        assert output.count(f"Created service: {service.name}") == 1
+        if service.logo_file:
+            assert output.count(f"Added logo for {service.name}") == 1
+    assert output[-1] == f"Total services in database: {Service.objects.count()}"
 
 
 def fail_logo_write_after_first_chunk(monkeypatch, failing_file):
@@ -342,6 +357,7 @@ def test_failed_row_save_after_logo_was_stored_removes_that_logo(logo_dir, monke
     assert stored_logos(logo_dir) == []
 
 
+@pytest.mark.django_db(transaction=True)
 def test_failure_after_commit_keeps_the_committed_logos(logo_dir, monkeypatch):
     def fail(*args, **kwargs):
         raise RuntimeError("late failure")
@@ -392,7 +408,6 @@ def test_cleanup_failure_does_not_hide_the_original_error(logo_dir, monkeypatch)
 
 @pytest.mark.django_db(transaction=True)
 def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatch):
-    from django.db import transaction
     from django.db.models.signals import post_save
 
     scheduled = []

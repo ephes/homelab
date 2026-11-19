@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Report default-service and logo seed results only after the database commits.
+
 - Limit failed admin logins within 15 minutes: 5 per username and client
   address, 30 per client address and 100 per network (IPv4 /24, IPv6 /64;
   Tailscale addresses excepted) (`apps.core.login_throttle`, migration
