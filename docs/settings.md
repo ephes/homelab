@@ -197,8 +197,10 @@ HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS = 900
 ```
 
 Each username/password attempt is charged against every budget before the
-password is checked, in one SQLite write transaction; a successful login
-refunds it. `ModelBackend` stays listed only so sessions created before the
+password is checked, in one SQLite write transaction. A successful login
+refunds its own address and network charges within the original window and
+clears username/address charges through its own reservation. Later
+username/address charges still count. `ModelBackend` stays listed only so sessions created before the
 throttle stay valid; failed attempts never reach it. See [admin](admin.md).
 
 #### Password Validators

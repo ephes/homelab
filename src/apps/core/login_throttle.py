@@ -9,7 +9,8 @@ These budgets apply to every username/password attempt, each over a fixed window
 
 An attempt is charged against every budget before the password is checked, in one
 SQLite write transaction, so concurrent workers cannot exceed a budget. A successful
-login refunds its charge and clears the username/address budget. An attempt that is
+login refunds its charge and clears the username/address budget through its own
+reservation, preserving later charges. An attempt that is
 over a budget is refused without checking the password.
 
 The client address is the last ``X-Forwarded-For`` entry: Traefik, the only proxy in
@@ -37,6 +38,7 @@ from django.contrib.auth.backends import ModelBackend
 from django.core.exceptions import PermissionDenied
 from django.db import router, transaction
 from django.db.models import F
+from django.db.models.functions import Least
 
 from .models import LoginThrottleBucket
 
@@ -97,7 +99,7 @@ def _budgets(request, username: str) -> dict[str, int]:
     return budgets
 
 
-def _charge(request, username: str) -> tuple[str, tuple[tuple[str, float], ...]]:
+def _charge(request, username: str) -> tuple[str, tuple[tuple[int, bool, int], ...]]:
     """Charge one attempt against every budget, or refuse it; all or nothing."""
     alias = router.db_for_write(LoginThrottleBucket)
     buckets = LoginThrottleBucket.objects.using(alias)
@@ -115,22 +117,29 @@ def _charge(request, username: str) -> tuple[str, tuple[tuple[str, float], ...]]
             bucket, _ = buckets.get_or_create(
                 key=key, defaults={"expires_at": now + settings.HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS}
             )
-            if not buckets.filter(key=key, failures__lt=limit).update(failures=F("failures") + 1):
+            if not buckets.filter(pk=bucket.pk, failures__lt=limit).update(
+                failures=F("failures") + 1, charge_sequence=F("charge_sequence") + 1
+            ):
                 # Rolls back the charges made earlier in this transaction.
                 raise PermissionDenied("Too many failed login attempts.")
-            charged.append((key, bucket.expires_at))
+            charged.append((bucket.pk, key.startswith("pair:"), bucket.charge_sequence + 1))
     return alias, tuple(charged)
 
 
 def _refund(charge) -> None:
-    """Refund a successful attempt's charge to every budget; clear its username/address budget."""
+    """Refund a success, clearing pair charges only through its reservation."""
     alias, charged = charge
     buckets = LoginThrottleBucket.objects.using(alias)
     with transaction.atomic(using=alias):
-        for key, expires_at in charged:
-            # Only the window that was charged: a newer window owes nothing.
-            window = buckets.filter(key=key, expires_at=expires_at, failures__gt=0)
-            window.update(failures=0 if key.startswith("pair:") else F("failures") - 1)
+        for bucket_id, is_pair, sequence in charged:
+            # A new window gets a new row and owes nothing to the old one.
+            window = buckets.filter(pk=bucket_id, failures__gt=0)
+            if is_pair:
+                # The pair count covers the suffix since the newest successful
+                # reservation. A later success may already have shortened it.
+                window.update(failures=Least(F("failures"), F("charge_sequence") - sequence))
+            else:
+                window.update(failures=F("failures") - 1)
 
 
 class LoginThrottleBackend(ModelBackend):

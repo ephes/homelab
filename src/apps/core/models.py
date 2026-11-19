@@ -28,6 +28,7 @@ class LoginThrottleBucket(models.Model):
 
     key = models.CharField(max_length=100, unique=True)
     failures = models.PositiveIntegerField(default=0)
+    charge_sequence = models.PositiveBigIntegerField(default=0)
     expires_at = models.FloatField(help_text="Unix time at which this window ends")
 
     class Meta:

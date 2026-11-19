@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep newer login charges when an earlier successful password check clears its username/address budget.
+
 - Mark connection diagnostics private and no-store so each request gets its own report.
 
 - Report default-service and logo seed results only after the database commits.
