@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Warn when a default service falls back to its icon because the packaged logo is missing.
+
 - Continue cleaning up unused seed logos and preserve the original seed error if stderr fails.
 
 - Show the Tailscale badge for tailnet IPv6 and IPv4-mapped tailnet addresses in connection diagnostics.

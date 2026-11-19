@@ -12,11 +12,8 @@ from apps.core.models import Service
 class Command(BaseCommand):
     help = "Create missing default services and fill missing logos"
 
-    def handle(self, *args, **options):
-        # Path to static logos directory where we keep the source logos
-        logos_dir = Path(__file__).parent.parent.parent / "static" / "core" / "logos"
-
-        services = [
+    def _default_services(self):
+        return [
             {
                 "name": "Home Assistant",
                 "description": "Smart home automation platform for controlling lights, sensors, and devices",
@@ -268,33 +265,42 @@ class Command(BaseCommand):
             },
         ]
 
+    def handle(self, *args, **options):
+        logos_dir = Path(__file__).parent.parent.parent / "static" / "core" / "logos"
+
         # Logo files are written to storage right away, but the service rows only
         # become permanent when the transaction commits. Remember every file this
         # run stores so a failed run can take them back out again.
         stored_logo_names: list[str] = []
         messages: list[str] = []
+        warnings: list[str] = []
         logo_storage = Service._meta.get_field("logo_file").storage
         using = router.db_for_write(Service)
 
         def report_success():
             for message in messages:
                 self.stdout.write(self.style.SUCCESS(message))
+            for warning in warnings:
+                self.stderr.write(self.style.WARNING(warning))
             total = Service.objects.using(using).count()
             self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
 
         try:
             with transaction.atomic(using=using):
-                for service_data in services:
+                for service_data in self._default_services():
                     logo_filename = service_data.pop("logo_filename", None)
 
                     service, created = Service.objects.using(using).get_or_create(
                         name=service_data["name"], defaults=service_data
                     )
 
-                    # Add logo file if specified and file exists
-                    if logo_filename:
+                    if logo_filename and not service.logo_file:
                         logo_path = logos_dir / logo_filename
-                        if logo_path.exists() and not service.logo_file:
+                        if not logo_path.exists():
+                            warnings.append(
+                                f"Missing packaged logo {logo_filename} for {service.name} (using icon fallback)"
+                            )
+                        else:
                             # Reserve the name first: storage.save() picks a free name
                             # and creates the (still empty) file atomically, so the name
                             # it returns is ours and nobody else's. Only names returned

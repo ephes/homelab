@@ -150,7 +150,9 @@ after the next `just deploy-one homelab`.
 The command creates missing defaults by name and preserves all fields on existing
 services, including owner URLs, descriptions, icons, display order and active status.
 It still fills a missing built-in logo without replacing an existing logo. To reset
-a service, edit it explicitly in the admin.
+a service, edit it explicitly in the admin. When a service needs a logo and the
+packaged image is missing, the command warns on stderr after commit and the tile
+uses its icon fallback.
 
 The command reports created and kept services, added logos, and the total only
 after the database commits. Cleanup diagnostics for a failed run go to stderr.

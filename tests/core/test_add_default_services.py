@@ -8,6 +8,7 @@ from django.core.files.base import ContentFile
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 
+from apps.core.management.commands import add_default_services
 from apps.core.models import Service
 
 LOGOS = Path(__file__).resolve().parents[2] / "src" / "apps" / "core" / "static" / "core" / "logos"
@@ -470,6 +471,45 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatc
         with storage.open(name, "rb") as source:
             assert source.read() == content == b"synthetic logo"
     assert "Removed logo file" not in stderr.getvalue()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_missing_packaged_logo_reports_fallback_without_interrupting_seed(logo_dir, tmp_path, monkeypatch, client):
+    packaged_logos = tmp_path / "static" / "core" / "logos"
+    packaged_logos.mkdir(parents=True)
+    (packaged_logos / "available.svg").write_bytes(b"<svg/>")
+    monkeypatch.setattr(
+        add_default_services, "__file__", str(tmp_path / "management" / "commands" / "add_default_services.py")
+    )
+    monkeypatch.setattr(
+        add_default_services.Command,
+        "_default_services",
+        lambda self: [
+            {"name": "Fallback service", "icon": "fas fa-rocket", "logo_filename": "missing.svg"},
+            {"name": "Logo service", "logo_filename": "available.svg"},
+        ],
+    )
+    stdout, stderr = StringIO(), StringIO()
+
+    call_command("add_default_services", stdout=stdout, stderr=stderr)
+
+    fallback = Service.objects.get(name="Fallback service")
+    assert fallback.is_active and not fallback.logo_file
+    assert b'<i class="fas fa-rocket"></i>' in client.get("/").content
+    with Service.objects.get(name="Logo service").logo_file.open("rb") as logo:
+        assert logo.read() == b"<svg/>"
+    assert "Created service: Fallback service" in stdout.getvalue()
+    assert "Added logo for Logo service" in stdout.getvalue()
+    assert stderr.getvalue().splitlines() == [
+        "Missing packaged logo missing.svg for Fallback service (using icon fallback)"
+    ]
+
+    fallback.logo_file.save("custom.svg", ContentFile(b"<svg/>"))
+    stderr = StringIO()
+    call_command("add_default_services", stdout=StringIO(), stderr=stderr)
+    fallback.refresh_from_db()
+    assert Path(fallback.logo_file.name).name == "custom.svg"
+    assert stderr.getvalue() == ""
 
 
 # --- RustFS replaces the retired MinIO tile ------------------------------------------
