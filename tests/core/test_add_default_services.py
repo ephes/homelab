@@ -406,6 +406,33 @@ def test_cleanup_failure_does_not_hide_the_original_error(logo_dir, monkeypatch)
     assert stderr.getvalue().count("Could not remove logo file") == 2
 
 
+@pytest.mark.parametrize("delete_fails", [False, True])
+def test_broken_cleanup_diagnostics_preserve_original_failure(logo_dir, monkeypatch, delete_fails):
+    fail_logo_save_on_call(monkeypatch, failing_call=3)
+    storage = Service._meta.get_field("logo_file").storage
+    original_delete = storage.delete
+    attempted = []
+
+    def delete(name):
+        attempted.append(name)
+        if delete_fails and len(attempted) == 1:
+            raise PermissionError("cannot delete")
+        original_delete(name)
+
+    class BrokenStderr(StringIO):
+        def write(self, text):
+            raise BrokenPipeError("stderr closed")
+
+    monkeypatch.setattr(storage, "delete", delete)
+
+    with pytest.raises(OSError, match="storage is full"):
+        call_command("add_default_services", stdout=StringIO(), stderr=BrokenStderr())
+
+    assert len(attempted) == 2
+    assert Service.objects.count() == 0
+    assert stored_logos(logo_dir) == ([Path(attempted[0]).name] if delete_fails else [])
+
+
 @pytest.mark.django_db(transaction=True)
 def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatch):
     from django.db.models.signals import post_save

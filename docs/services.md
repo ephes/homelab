@@ -154,6 +154,8 @@ a service, edit it explicitly in the admin.
 
 The command reports created and kept services, added logos, and the total only
 after the database commits. Cleanup diagnostics for a failed run go to stderr.
+If stderr fails, the command continues checking its remaining logo allocations
+and preserves the original seed error.
 
 OpsGate was retired on 2026-11-10 (stopped, data kept): its production tile is set
 inactive (`is_active=false`) and, because the command keeps the active status of an

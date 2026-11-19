@@ -1,3 +1,4 @@
+from contextlib import suppress
 from pathlib import Path
 
 from django.core.files import File
@@ -335,11 +336,13 @@ class Command(BaseCommand):
 
     def _remove_stored_logos(self, storage, names: list[str], using: str) -> None:
         for name in names:
-            try:
-                if Service.objects.using(using).filter(logo_file=name).exists():
-                    continue
-                storage.delete(name)
-            except Exception as error:  # noqa: BLE001 - keep cleaning up, the original error is re-raised
-                self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))
-            else:
-                self.stderr.write(f"Removed logo file {name} (unused allocation)")
+            # A failed diagnostic must not interrupt cleanup or replace a seed error.
+            with suppress(Exception):
+                try:
+                    if Service.objects.using(using).filter(logo_file=name).exists():
+                        continue
+                    storage.delete(name)
+                except Exception as error:  # noqa: BLE001 - report the failure and keep cleaning up
+                    self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))
+                else:
+                    self.stderr.write(f"Removed logo file {name} (unused allocation)")
