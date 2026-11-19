@@ -176,6 +176,23 @@ class TestConnectionInfoView:
         assert response.context["client_ip"] == "100.119.21.5"
         assert response.context["is_tailscale"] is True
 
+    @pytest.mark.parametrize(
+        ("address", "is_tailscale", "is_local"),
+        [
+            ("fd7a:115c:a1e0::42", True, False),
+            ("::ffff:100.100.1.42", True, False),
+            ("fd50:3e45:c454::42", False, True),
+        ],
+    )
+    def test_classifies_ipv6_and_mapped_addresses(self, client, address, is_tailscale, is_local):
+        forwarded_for = f"192.0.2.10, {address}"
+        response = self.get(client, xff=forwarded_for)
+
+        assert response.status_code == 200
+        assert response.context["is_tailscale"] is is_tailscale
+        assert response.context["is_local"] is is_local
+        assert response.context["forwarded_for"] == forwarded_for
+
     def test_local_badge_from_proxy_entry(self, client):
         response = self.get(client, xff="8.8.8.8, 192.168.178.20")
         assert response.context["is_local"] is True

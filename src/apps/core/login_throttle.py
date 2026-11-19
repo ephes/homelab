@@ -40,43 +40,17 @@ from django.db import router, transaction
 from django.db.models import F
 from django.db.models.functions import Least
 
+from .client_addresses import IPAddress, canonical_ip, client_address, is_tailscale
 from .models import LoginThrottleBucket
 
 MAX_USERNAME = 150  # longer names are cut for the key; they cannot belong to an account
 NETWORK_PREFIX = {4: 24, 6: 64}
-TAILSCALE_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("fd7a:115c:a1e0::/48"))
 EXPIRED_ROWS_PER_ATTEMPT = 100
 
 
-def client_address(request) -> str:
-    """The address Traefik saw, or the socket address without a usable header."""
-    candidate = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[-1].strip()
-    if candidate:
-        try:
-            return str(ipaddress.ip_address(candidate))
-        except ValueError:
-            pass
-    return request.META.get("REMOTE_ADDR") or "unknown"
-
-
-def throttle_address(address: str) -> str:
-    """The address a client is counted as: IPv4-mapped IPv6 as its IPv4 address."""
-    try:
-        ip = ipaddress.ip_address(address)
-    except ValueError:
-        return address
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
-        return str(ip.ipv4_mapped)
-    return str(ip)
-
-
-def throttle_network(address: str) -> str | None:
+def _throttle_network(ip: IPAddress | None) -> str | None:
     """The /24 (IPv4) or /64 (IPv6) whose budget a non-Tailscale address shares, else None."""
-    try:
-        ip = ipaddress.ip_address(address)
-    except ValueError:
-        return None
-    if any(ip in network for network in TAILSCALE_NETWORKS):
+    if ip is None or is_tailscale(ip):
         return None
     return str(ipaddress.ip_network((ip, NETWORK_PREFIX[ip.version]), strict=False))
 
@@ -87,10 +61,13 @@ def _digest(value: str) -> str:
 
 def _budgets(request, username: str) -> dict[str, int]:
     """Bucket key -> limit, coarsest first; keys are hashed, addresses never stored."""
-    address = throttle_address(client_address(request))
+    address = client_address(request)
+    ip = canonical_ip(address)
+    if ip is not None:
+        address = str(ip)
     name = username[:MAX_USERNAME].casefold()
     budgets = {}
-    network = throttle_network(address)
+    network = _throttle_network(ip)
     if network is not None:
         budgets[f"net:{_digest(network)}"] = settings.HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT
     budgets[f"addr:{_digest(address)}"] = settings.HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT

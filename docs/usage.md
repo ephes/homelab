@@ -7,7 +7,8 @@ Access your services at http://localhost:8000 (or your production URL).
 ## Connection diagnostics
 
 Open `/connection-info/` to see the client address and proxy information for
-the current request. The response uses `Cache-Control: private, no-store`.
+the current request. The Tailscale badge covers IPv4 and IPv6 tailnet addresses,
+including IPv4-mapped IPv6 addresses for the IPv4 range. The response uses `Cache-Control: private, no-store`.
 
 ## Managing Services
 
