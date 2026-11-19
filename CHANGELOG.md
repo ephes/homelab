@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Mark connection diagnostics private and no-store so each request gets its own report.
+
 - Report default-service and logo seed results only after the database commits.
 
 - Limit failed admin logins within 15 minutes: 5 per username and client

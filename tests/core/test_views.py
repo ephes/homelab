@@ -111,6 +111,21 @@ class TestHomeView:
         service.delete()
 
 
+@pytest.fixture
+def page_cache(settings):
+    settings.CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "connection-info-test",
+        }
+    }
+    settings.MIDDLEWARE = [
+        "django.middleware.cache.UpdateCacheMiddleware",
+        *settings.MIDDLEWARE,
+        "django.middleware.cache.FetchFromCacheMiddleware",
+    ]
+
+
 @pytest.mark.django_db
 class TestConnectionInfoView:
     """The connection-info page derives the client address from the proxy-appended XFF entry."""
@@ -122,6 +137,23 @@ class TestConnectionInfoView:
         if xff is not None:
             extra["HTTP_X_FORWARDED_FOR"] = xff
         return client.get(self.url, **extra)
+
+    def test_connection_info_is_private_and_fresh_with_page_cache(self, client, page_cache):
+        first = self.get(client, xff="192.0.2.10")
+        second = self.get(client, xff="192.0.2.20")
+
+        assert first.status_code == second.status_code == 200
+        assert b"192.0.2.10" in first.content
+        assert b"192.0.2.20" in second.content
+        assert b"192.0.2.10" not in second.content
+        for response in (first, second):
+            directives = {part.strip() for part in response["Cache-Control"].split(",")}
+            assert {"private", "no-store"} <= directives
+
+        dashboard = client.get(reverse("core:home"))
+        assert dashboard.status_code == 200
+        assert "private" not in dashboard.get("Cache-Control", "")
+        assert "no-store" not in dashboard.get("Cache-Control", "")
 
     def test_url_resolves(self):
         assert reverse("core:connection-info") == self.url

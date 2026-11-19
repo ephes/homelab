@@ -1,6 +1,7 @@
 import ipaddress
 
 from django.shortcuts import render
+from django.views.decorators.cache import never_cache
 from django.views.generic import ListView
 
 from .models import Service
@@ -35,6 +36,7 @@ def client_ip_from_request(request):
     return request.META.get("REMOTE_ADDR") or "Unknown"
 
 
+@never_cache
 def connection_info(request):
     """Display connection information for debugging."""
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")

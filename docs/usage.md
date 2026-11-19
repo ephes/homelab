@@ -4,6 +4,11 @@
 
 Access your services at http://localhost:8000 (or your production URL).
 
+## Connection diagnostics
+
+Open `/connection-info/` to see the client address and proxy information for
+the current request. The response uses `Cache-Control: private, no-store`.
+
 ## Managing Services
 
 ### Via Admin Panel
