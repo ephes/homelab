@@ -521,6 +521,8 @@ short count. The request must fail, preserve the old row and logo, and remove
 the staged file.
 The post-commit regression also routes instance writes to `secondary` while
 unhinted writes route to `default`, and verifies the committed logo is readable.
+With the same routing, a `post_save` failure after the autocommit row write must
+keep the new logo the committed row references, for add and replacement.
 Default rows must remain unchanged. These checks preserve logo ownership on the
 writer alias. To check sensitivity, temporarily
 route retirement reference checks, on-commit registration or failed-upload

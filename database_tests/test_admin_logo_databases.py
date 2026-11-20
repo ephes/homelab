@@ -164,16 +164,50 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
         assert source.read() == b"old logo"
 
 
+class InstanceServiceRouter(SecondaryServiceRouter):
+    """Route instance writes to secondary and unhinted writes to default."""
+
+    def db_for_write(self, model, **hints):
+        if model is Service:
+            return "secondary" if hints.get("instance") is not None else "default"
+        return None
+
+
+@pytest.mark.parametrize("change", [True, False])
+def test_autocommit_row_failure_after_commit_keeps_referenced_upload(admin_client, settings, tmp_path, change):
+    # The change-form transaction runs on default, so the secondary row write
+    # commits before post_save raises; its new logo must stay readable.
+    settings.MEDIA_ROOT = tmp_path
+    service = Service.objects.create(name="Secondary", logo_file=SimpleUploadedFile("old.svg", b"old logo"))
+    old_name = service.logo_file.name
+    settings.DATABASE_ROUTERS = [InstanceServiceRouter()]
+    reached = []
+
+    def fail(*args, **kwargs):
+        reached.append(True)
+        raise RuntimeError("after autocommit row write")
+
+    post_save.connect(fail, sender=Service)
+    data = change_data(service)
+    data.update(name="Secondary" if change else "New", logo_file=SimpleUploadedFile("new.svg", b"new logo"))
+    url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
+    try:
+        with pytest.raises(RuntimeError, match="after autocommit row write"):
+            admin_client.post(url, data)
+    finally:
+        post_save.disconnect(fail, sender=Service)
+    assert reached
+    committed = Service.objects.get(name="Secondary" if change else "New")
+    assert committed.logo_file.name != old_name
+    with committed.logo_file.open("rb") as source:
+        assert source.read() == b"new logo"
+    with service.logo_file.storage.open(old_name, "rb") as source:
+        assert source.read() == b"old logo"
+
+
 @pytest.mark.parametrize("instance_routing", [False, True])
 def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monkeypatch, settings, instance_routing):
     if instance_routing:
-
-        class InstanceServiceRouter(SecondaryServiceRouter):
-            def db_for_write(self, model, **hints):
-                if model is Service:
-                    return "secondary" if hints.get("instance") is not None else "default"
-                return None
-
         settings.DATABASE_ROUTERS = [InstanceServiceRouter()]
 
     # No default row references this upload: compensation must query secondary.

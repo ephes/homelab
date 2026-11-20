@@ -275,7 +275,12 @@ class ServiceAdmin(admin.ModelAdmin):
                 obj.logo_file = name
             super().save_model(request, obj, form, change)
         except BaseException:
-            self._remove_failed_uploads(allocated)
+            # Inside a transaction on the write alias the row change rolls back
+            # with this error. In autocommit (the change form's transaction runs
+            # on another alias), Model.save may have committed the row before a
+            # post_save receiver raised: keep a file the committed row references.
+            in_transaction = transaction.get_connection(using).in_atomic_block
+            self._remove_failed_uploads(allocated, using=None if in_transaction else using)
             raise
         if hasattr(request, "_service_logo_uploads"):
             request._service_logo_uploads.extend((name, using) for name in allocated)

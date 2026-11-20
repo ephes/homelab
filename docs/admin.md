@@ -189,7 +189,10 @@ shared logos. Reference checks and commit callbacks use
 the Service write database, including the writer-bound bulk queryset, so rows on
 another alias do not determine ownership. The two-alias regression
 also covers a failure after the service row commits: cleanup checks the recorded
-upload write alias and keeps the file while the committed row references it. The
+upload write alias and keeps the file while the committed row references it.
+When the row's write alias is in autocommit (the change form's transaction runs
+on another alias), a `post_save` failure leaves the row committed; cleanup then
+checks that alias too and keeps the referenced file. The
 command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or

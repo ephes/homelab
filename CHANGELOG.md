@@ -5,7 +5,8 @@
 - Reject admin logo uploads when storage reports a short write, preserving the
   old logo and removing the partial file.
 - Keep committed admin logo uploads when change-form cleanup encounters different
-  instance and model database routes.
+  instance and model database routes, including a `post_save` failure after an
+  autocommit row write.
 - Check shared logo references in one post-commit query after bulk admin deletion.
 
 - Cover quick-edit retries after validation errors to ensure stale revisions
