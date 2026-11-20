@@ -484,6 +484,9 @@ on add/change, and rejection after a storage name has been reserved. Rejected
 form uploads must show a field error without changing the old row, revision or
 logo; the copy guard must never write the chunk that exceeds the budget and must
 remove its partial allocation.
+The bulk deletion test counts one reference query after commit for distinct
+retired logo names and checks that a reference added before commit protects its
+shared file.
 
 `uv run pytest tests/core/test_admin_conflicts.py` submits two valid quick edits,
 saves the first row, then triggers a real unique-constraint database failure on

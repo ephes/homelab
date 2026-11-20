@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Check shared logo references in one post-commit query after bulk admin deletion.
+
 - Warn when a default service falls back to its icon because the packaged logo is missing. FastDeploy
   no longer names a logo that was never packaged, so a default seed run stays quiet.
 

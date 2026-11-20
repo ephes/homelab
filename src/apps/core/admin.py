@@ -195,12 +195,26 @@ class ServiceAdmin(admin.ModelAdmin):
             return super().changelist_view(request, extra_context)
 
     def _retire_logos(self, names, using):
+        names = set(names) - {""}
+        if not names:
+            return
         storage = self.model._meta.get_field("logo_file").storage
 
         def cleanup():
-            for name in set(names) - {""}:
+            logos = self.model.objects.using(using)
+            try:
+                # The bulk action bounds this lookup to MAX_DELETE_SERVICES.
+                referenced = set(
+                    logos.filter(logo_file__in=names).order_by().values_list("logo_file", flat=True).distinct()
+                )
+            except Exception:
+                # A failed batch must still check ownership for each file.
+                logger.exception("Could not check references for retired service logos in bulk")
+                referenced = None
+            for name in names:
                 try:
-                    if not self.model.objects.using(using).filter(logo_file=name).exists():
+                    still_used = logos.filter(logo_file=name).exists() if referenced is None else name in referenced
+                    if not still_used:
                         storage.delete(name)
                 except Exception:
                     logger.exception("Could not clean up retired service logo %s", name)

@@ -5,7 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 from django.core.files.uploadedfile import InMemoryUploadedFile, SimpleUploadedFile
-from django.db import transaction
+from django.db import connection, transaction
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from apps.core.admin import logger
@@ -78,6 +79,33 @@ def test_admin_logo_retirement(admin_client, action, outcome):
         assert not service.logo_file
     else:
         assert not Service.objects.filter(pk=service.pk).exists()
+
+
+def test_bulk_cleanup_checks_distinct_logo_references_in_one_query(admin_client):
+    services = [
+        Service.objects.create(name=f"Synthetic {i}", logo_file=SimpleUploadedFile(f"batch-{i}.svg", b"logo"))
+        for i in range(12)
+    ]
+    shared_name = services[0].logo_file.name
+    storage = services[0].logo_file.storage
+    selected = [
+        *services,
+        Service.objects.create(name="Selected duplicate", logo_file=shared_name),
+        Service.objects.create(name="Without logo"),
+    ]
+    url, data = bulk_confirmation(admin_client, selected)
+
+    with CaptureQueriesContext(connection) as queries:
+        with transaction.atomic():
+            assert admin_client.post(url, data).status_code == 302
+            Service.objects.create(name="Reference before commit", logo_file=shared_name)
+            post_commit_start = len(queries)
+
+    selects = [query for query in queries.captured_queries[post_commit_start:] if query["sql"].startswith("SELECT")]
+    assert len(selects) == 1
+    assert list(Service.objects.values_list("name", flat=True)) == ["Reference before commit"]
+    assert storage.exists(shared_name)
+    assert all(not storage.exists(service.logo_file.name) for service in services[1:])
 
 
 def test_bulk_cleanup_failure_is_logged_and_other_files_are_removed(admin_client, monkeypatch, caplog):

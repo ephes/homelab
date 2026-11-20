@@ -172,6 +172,9 @@ actual-byte checks and their scope.
 Replacing or clearing a logo, or deleting services individually or in bulk,
 retires the old uploaded file after the database transaction commits. The file
 is kept if any Service still references its storage name at cleanup time.
+Cleanup checks all distinct, nonempty logo names in a confirmed selection in one
+database query. If that query fails, cleanup falls back to checking each logo
+individually.
 Rolled-back admin changes preserve the old file; replacement uploads remain
 available after successful saves. If the admin change-form transaction fails while
 writing an upload, saving its row, or saving related/admin records, the new upload
