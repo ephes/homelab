@@ -118,6 +118,10 @@ held through the save. This protects admin saves against writers that advance
 `updated_at` (normal model saves); direct queryset updates must update that timestamp
 too to participate in conflict detection.
 
+When a quick edit fails validation, the list keeps the submitted revisions with
+the entered values. Correcting a field error lets you retry the batch, and any
+stale row still requires an explicit reload before you can save.
+
 A database failure while saving a valid quick-edit batch also rolls back the
 entire batch, including revisions and pending logo cleanup callbacks. Reload the
 list after a failed request before retrying to pick up any intervening saves by

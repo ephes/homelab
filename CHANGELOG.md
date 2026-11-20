@@ -4,6 +4,9 @@
 
 - Check shared logo references in one post-commit query after bulk admin deletion.
 
+- Cover quick-edit retries after validation errors to ensure stale revisions
+  still prevent the entire batch from saving.
+
 - Warn when a default service falls back to its icon because the packaged logo is missing. FastDeploy
   no longer names a logo that was never packaged, so a default seed run stays quiet.
 

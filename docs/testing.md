@@ -498,6 +498,11 @@ then persists and the rollback assertion fails. Removing only the custom scope
 still leaves Django's save transaction protecting the writes; the contention
 lane separately covers the validation lock lifetime.
 
+The invalid quick-edit regression submits one invalid row and one concurrently
+updated row. It reads the inputs from the rendered HTML and retries with the
+invalid field corrected. The stale revision must survive the error page, and
+neither row may change on either submission.
+
 The separate two-database runtime lane uses the existing file-backed settings:
 
 ```bash

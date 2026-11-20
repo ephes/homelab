@@ -1,6 +1,7 @@
 """Stale admin submissions retain newer rows and never allocate uploads."""
 
 import pytest
+from bs4 import BeautifulSoup
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
@@ -89,6 +90,55 @@ def test_stale_list_edit_is_a_form_error_and_preserves_entire_batch(admin_client
         data[f"form-{i}-original_revision"] = form.initial["original_revision"]
     assert admin_client.post(url, data).status_code == 302
     assert list(Service.objects.order_by("order").values_list("order", flat=True)) == [10, 11]
+
+
+def test_invalid_list_edit_rerenders_submitted_revisions_and_rejects_corrected_stale_batch(admin_client):
+    first = Service.objects.create(name="Synthetic first", order=0, is_active=False)
+    second = Service.objects.create(name="Synthetic second", order=1, is_active=False)
+    url = reverse("admin:core_service_changelist")
+
+    def rendered_data(response):
+        page = BeautifulSoup(response.content, "html.parser")
+        data = {
+            field["name"]: field.get("value", "")
+            for field in page.select('#changelist-form input[name^="form-"]')
+            if field.get("type") != "checkbox" or field.has_attr("checked")
+        }
+        return {**data, "_save": "Save"}
+
+    data = rendered_data(admin_client.get(url))
+    assert data["form-0-id"] == str(first.pk)
+    assert data["form-1-id"] == str(second.pk)
+    data.update(
+        {
+            "form-0-order": "invalid",
+            "form-0-is_active": "on",
+            "form-1-order": "11",
+            "form-1-is_active": "on",
+        }
+    )
+    second.order = 99
+    second.save()
+    before = list(Service.objects.order_by("pk").values())
+
+    invalid = admin_client.post(url, data)
+    assert invalid.status_code == 200
+    assert "order" in invalid.context["cl"].formset.forms[0].errors
+    retry = rendered_data(invalid)
+    for prefix in ("form-0", "form-1"):
+        field = f"{prefix}-original_revision"
+        assert retry[field] == data[field]
+    assert retry["form-0-order"] == "invalid"
+    assert retry["form-1-order"] == "11"
+    assert list(Service.objects.order_by("pk").values()) == before
+
+    retry["form-0-order"] = "10"
+    conflict = admin_client.post(url, retry)
+    assert conflict.status_code == 200
+    formset = conflict.context["cl"].formset
+    assert not formset.forms[0].errors
+    assert "changed since" in str(formset.forms[1].non_field_errors())
+    assert list(Service.objects.order_by("pk").values()) == before
 
 
 def test_missing_revision_cannot_overwrite_service(admin_client, service):
