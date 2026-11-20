@@ -16,6 +16,7 @@ class Service(models.Model):
 
     class Meta:
         ordering = ["order", "name"]
+        indexes = [models.Index(fields=["logo_file"], name="core_service_logo_file_idx")]
         verbose_name = "Service"
         verbose_name_plural = "Services"
 

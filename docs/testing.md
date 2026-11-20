@@ -592,6 +592,9 @@ overrun the login throttle.
 The applied-migration lane overrides pytest's default `--no-migrations` and
 `--reuse-db`, executes every committed operation on a fresh database, checks the
 recorded core leaves and Service columns, and round-trips a synthetic service.
+It also compares SQLite query plans before and after the service logo index
+migration, checking single-name and bulk reference lookups with shared and
+case-distinct names.
 The ordinary CI-gate tests inject a failing RunPython operation in a disposable
 source copy: the drift check stays green but this lane must fail.
 
