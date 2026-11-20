@@ -10,6 +10,8 @@
 - Show the Tailscale badge for tailnet IPv6 and IPv4-mapped tailnet addresses in connection diagnostics.
 
 - Keep newer login charges when an earlier successful password check clears its username/address budget.
+  Migration `0020_login_throttle_charge_sequence` gives the new counter a database default, so
+  workers still running the previous code during a deploy (or after a rollback) keep recording failures.
 
 - Mark connection diagnostics private and no-store so each request gets its own report.
 

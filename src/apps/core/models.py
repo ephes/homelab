@@ -28,7 +28,10 @@ class LoginThrottleBucket(models.Model):
 
     key = models.CharField(max_length=100, unique=True)
     failures = models.PositiveIntegerField(default=0)
-    charge_sequence = models.PositiveBigIntegerField(default=0)
+    # db_default keeps inserts that omit the column working, so code without
+    # this field (workers still running during a deploy, or a rollback) can
+    # still record failures after migration 0020.
+    charge_sequence = models.PositiveBigIntegerField(default=0, db_default=0)
     expires_at = models.FloatField(help_text="Unix time at which this window ends")
 
     class Meta:

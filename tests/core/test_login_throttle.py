@@ -177,3 +177,21 @@ def test_default_limits():
     assert base.HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT == 30
     assert base.HOMELAB_LOGIN_NETWORK_FAILURE_LIMIT == 100
     assert base.HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS == 15 * 60
+
+
+@pytest.mark.django_db
+def test_insert_without_charge_sequence_uses_the_database_default():
+    # Code that predates charge_sequence must keep inserting buckets after
+    # migration 0020 (old workers during a deploy, or a rollback).
+    from django.db import connection
+
+    from apps.core.models import LoginThrottleBucket
+
+    table = connection.ops.quote_name(LoginThrottleBucket._meta.db_table)
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"INSERT INTO {table} (key, failures, expires_at) VALUES (%s, %s, %s)",
+            ["pair:legacy", 1, 0.0],
+        )
+
+    assert LoginThrottleBucket.objects.get(key="pair:legacy").charge_sequence == 0
