@@ -268,7 +268,10 @@ class ServiceAdmin(admin.ModelAdmin):
                         written += len(chunk)
                         if written > MAX_LOGO_BYTES:
                             raise forms.ValidationError(LOGO_SIZE_ERROR)
-                        destination.write(chunk)
+                        count = destination.write(chunk)
+                        # Some storage streams signal success by returning None.
+                        if count is not None and count != len(chunk):
+                            raise OSError("Short write while storing a service logo.")
                 obj.logo_file = name
             super().save_model(request, obj, form, change)
         except BaseException:

@@ -97,7 +97,7 @@ def test_retirement_uses_secondary_commit_and_references(admin_client, action, o
         assert not Service.objects.filter(pk=service.pk).exists()
 
 
-@pytest.mark.parametrize("failure", ["row", "related", "write"])
+@pytest.mark.parametrize("failure", ["row", "related", "write", "short_write"])
 @pytest.mark.parametrize("change", [True, False])
 def test_secondary_failed_upload_removes_only_owned_allocation(
     admin_client, settings, tmp_path, monkeypatch, failure, change
@@ -105,6 +105,7 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
     settings.MEDIA_ROOT = tmp_path
     service = Service.objects.create(name="Secondary", logo_file=SimpleUploadedFile("same.svg", b"old logo"))
     old_name, storage = service.logo_file.name, service.logo_file.storage
+    old_revision = service.updated_at
     Service.objects.create(name="Retained secondary reference", logo_file=old_name)
     Service.objects.using("default").create(pk=service.pk, name="Default sentinel", logo_file=old_name)
     before = default_rows()
@@ -116,7 +117,7 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
 
     if failure == "related":
         monkeypatch.setattr(admin.site._registry[Service], "save_related", fail)
-    elif failure == "write":
+    elif failure in {"write", "short_write"}:
         original_open = storage.open
 
         @contextmanager
@@ -126,8 +127,11 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
                     original_write = destination.write
 
                     def partial_write(chunk):
-                        original_write(chunk[:3])
-                        fail()
+                        count = original_write(chunk[:3])
+                        if failure == "write":
+                            fail()
+                        reached.append(True)
+                        return count
 
                     yield SimpleNamespace(write=partial_write)
                 else:
@@ -140,13 +144,19 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
     data.update(name="Secondary" if change else "New", logo_file=SimpleUploadedFile("same.svg", b"new logo"))
     url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
     try:
-        with pytest.raises(RuntimeError, match="injected failure"):
+        expected_error = (
+            pytest.raises(OSError, match="Short write")
+            if failure == "short_write"
+            else pytest.raises(RuntimeError, match="injected failure")
+        )
+        with expected_error:
             admin_client.post(url, data)
     finally:
         post_save.disconnect(fail, sender=Service)
     assert reached
     service.refresh_from_db()
     assert service.logo_file.name == old_name
+    assert service.updated_at == old_revision
     assert Service.objects.count() == 2
     assert default_rows() == before
     assert sorted(path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()) == [old_name]

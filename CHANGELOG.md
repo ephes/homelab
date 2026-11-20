@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject admin logo uploads when storage reports a short write, preserving the
+  old logo and removing the partial file.
 - Keep committed admin logo uploads when change-form cleanup encounters different
   instance and model database routes.
 - Check shared logo references in one post-commit query after bulk admin deletion.

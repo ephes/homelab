@@ -183,8 +183,9 @@ Rolled-back admin changes preserve the old file; replacement uploads remain
 available after successful saves. If the admin change-form transaction fails while
 writing an upload, saving its row, or saving related/admin records, the new upload
 is removed after rollback. Names are reserved through storage before bytes are
-copied, so cleanup removes only this save's allocation, including partial writes;
-old and shared logos remain untouched. Reference checks and commit callbacks use
+copied. A reported short write aborts the upload before the file is attached to
+the service. Cleanup removes only this save's allocation and preserves old and
+shared logos. Reference checks and commit callbacks use
 the Service write database, including the writer-bound bulk queryset, so rows on
 another alias do not determine ownership. The two-alias regression
 also covers a failure after the service row commits: cleanup checks the recorded
