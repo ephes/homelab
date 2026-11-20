@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep committed admin logo uploads when change-form cleanup encounters different
+  instance and model database routes.
 - Check shared logo references in one post-commit query after bulk admin deletion.
 
 - Cover quick-edit retries after validation errors to ensure stale revisions

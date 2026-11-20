@@ -187,6 +187,8 @@ copied, so cleanup removes only this save's allocation, including partial writes
 old and shared logos remain untouched. Reference checks and commit callbacks use
 the Service write database, including the writer-bound bulk queryset, so rows on
 another alias do not determine ownership. The two-alias regression
+also covers a failure after the service row commits: cleanup checks the recorded
+upload write alias and keeps the file while the committed row references it. The
 command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or

@@ -239,7 +239,8 @@ class ServiceAdmin(admin.ModelAdmin):
         try:
             return super().changeform_view(request, object_id, form_url, extra_context)
         except BaseException:
-            self._remove_failed_uploads(request._service_logo_uploads, using=router.db_for_write(self.model))
+            for name, using in request._service_logo_uploads:
+                self._remove_failed_uploads([name], using=using)
             raise
         finally:
             del request._service_logo_uploads
@@ -274,7 +275,7 @@ class ServiceAdmin(admin.ModelAdmin):
             self._remove_failed_uploads(allocated)
             raise
         if hasattr(request, "_service_logo_uploads"):
-            request._service_logo_uploads.extend(allocated)
+            request._service_logo_uploads.extend((name, using) for name in allocated)
         if old_name and old_name != obj.logo_file.name:
             self._retire_logos([old_name], using)
 

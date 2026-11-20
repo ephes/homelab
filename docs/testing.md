@@ -516,6 +516,8 @@ A router sends Service reads/writes to `secondary`, while users/admin records
 remain on `default`. Conflicting default rows and shared synthetic storage names
 exercise replacement, clearing, individual/bulk deletion, delayed commit cleanup,
 rollback, retained references, partial/failed uploads and post-commit compensation.
+The post-commit regression also routes instance writes to `secondary` while
+unhinted writes route to `default`, and verifies the committed logo is readable.
 Default rows must remain unchanged. These checks preserve logo ownership on the
 writer alias. To check sensitivity, temporarily
 route retirement reference checks, on-commit registration or failed-upload

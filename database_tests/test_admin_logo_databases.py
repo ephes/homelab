@@ -154,7 +154,18 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
         assert source.read() == b"old logo"
 
 
-def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monkeypatch):
+@pytest.mark.parametrize("instance_routing", [False, True])
+def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monkeypatch, settings, instance_routing):
+    if instance_routing:
+
+        class InstanceServiceRouter(SecondaryServiceRouter):
+            def db_for_write(self, model, **hints):
+                if model is Service:
+                    return "secondary" if hints.get("instance") is not None else "default"
+                return None
+
+        settings.DATABASE_ROUTERS = [InstanceServiceRouter()]
+
     # No default row references this upload: compensation must query secondary.
     Service.objects.using("default").create(name="Default sentinel", logo_file="unrelated.svg")
     before = default_rows()
