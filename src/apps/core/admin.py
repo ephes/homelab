@@ -12,6 +12,7 @@ from django.db.models import F
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
+from .logo_storage import write_logo_chunk
 from .models import Service
 
 logger = logging.getLogger("homelab")
@@ -268,10 +269,7 @@ class ServiceAdmin(admin.ModelAdmin):
                         written += len(chunk)
                         if written > MAX_LOGO_BYTES:
                             raise forms.ValidationError(LOGO_SIZE_ERROR)
-                        count = destination.write(chunk)
-                        # Some storage streams signal success by returning None.
-                        if count is not None and count != len(chunk):
-                            raise OSError("Short write while storing a service logo.")
+                        write_logo_chunk(destination, chunk)
                 obj.logo_file = name
             super().save_model(request, obj, form, change)
         except BaseException:

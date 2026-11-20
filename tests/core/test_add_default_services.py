@@ -1,6 +1,8 @@
 import errno
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from django.core.files import File
@@ -280,6 +282,26 @@ def test_partially_written_logo_is_removed_and_retry_reuses_its_name(logo_dir, m
     partial_name = Path(opened[2]).name
     assert partial_name in names
     assert not [name for name in names if name.startswith(Path(partial_name).stem + "_")]
+
+
+def test_short_write_rolls_back_seed_and_removes_partial_logo(logo_dir, monkeypatch):
+    service = Service.objects.create(name="Home Assistant")
+    storage = service.logo_file.storage
+    original_open = storage.open
+
+    @contextmanager
+    def short_writing_open(name, mode="rb"):
+        with original_open(name, mode) as destination:
+            yield SimpleNamespace(write=lambda chunk: destination.write(chunk[:1]))
+
+    monkeypatch.setattr(storage, "open", short_writing_open)
+
+    with pytest.raises(OSError, match="Short write"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    service.refresh_from_db()
+    assert not service.logo_file
+    assert stored_logos(logo_dir) == []
 
 
 def test_partial_write_never_removes_an_existing_logo_with_the_same_name(logo_dir, monkeypatch):

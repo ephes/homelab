@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Roll back default-service seeding when storage reports a short logo write and
+  remove the partial file.
 - Reject admin logo uploads when storage reports a short write, preserving the
   old logo and removing the partial file.
 - Keep committed admin logo uploads when change-form cleanup encounters different

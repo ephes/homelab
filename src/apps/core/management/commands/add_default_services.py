@@ -6,6 +6,7 @@ from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import router, transaction
 
+from apps.core.logo_storage import write_logo_chunk
 from apps.core.models import Service
 
 
@@ -315,7 +316,7 @@ class Command(BaseCommand):
                             # the partial file is already recorded and gets removed.
                             with open(logo_path, "rb") as f, logo_storage.open(reserved_name, "wb") as destination:
                                 for chunk in File(f).chunks():
-                                    destination.write(chunk)
+                                    write_logo_chunk(destination, chunk)
                             # Storage I/O may outlive an owner edit. Reload and lock
                             # before attaching, and write only the logo and revision.
                             service = Service.objects.using(using).select_for_update().get(pk=service.pk)
