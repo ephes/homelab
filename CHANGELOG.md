@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Check pending seed logo references in one query and retain the files if the
+  lookup fails.
 - Index stored service logo names for exact and bulk cleanup lookups. Apply
   migration `0021_service_logo_file_index` to add the index.
 - Roll back default-service seeding when storage reports a short logo write and

@@ -8,7 +8,7 @@ import pytest
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.management import call_command
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, connection, transaction
 
 from apps.core.management.commands import add_default_services
 from apps.core.models import Service
@@ -454,6 +454,45 @@ def test_broken_cleanup_diagnostics_preserve_original_failure(logo_dir, monkeypa
     assert len(attempted) == 2
     assert Service.objects.count() == 0
     assert stored_logos(logo_dir) == ([Path(attempted[0]).name] if delete_fails else [])
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize("lookup_fails", [False, True])
+def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, monkeypatch, lookup_fails):
+    monkeypatch.setattr(File, "chunks", lambda self, chunk_size=None: iter([b"synthetic logo"]))
+    pending = []
+    cleanup_queries = []
+
+    class FailingReporter(StringIO):
+        def write(self, text):
+            # After commit, simulate an intervening writer retaining only one logo.
+            logos = Service.objects.exclude(logo_file="").order_by("pk")
+            pending.extend(logos.values_list("logo_file", flat=True))
+            logos.exclude(logo_file=pending[0]).update(logo_file="")
+            raise BrokenPipeError("synthetic reporter failure")
+
+    def observe_cleanup(execute, sql, params, many, context):
+        if pending and sql.startswith("SELECT"):
+            cleanup_queries.append(params)
+            if lookup_fails:
+                raise OperationalError("synthetic reference lookup failure")
+        return execute(sql, params, many, context)
+
+    stderr = StringIO()
+    with (
+        connection.execute_wrapper(observe_cleanup),
+        pytest.raises(BrokenPipeError, match="synthetic reporter failure"),
+    ):
+        call_command("add_default_services", stdout=FailingReporter(), stderr=stderr)
+
+    assert len(pending) > 2
+    assert len(cleanup_queries) == 1
+    assert set(cleanup_queries[0]) == set(pending)
+    expected = pending if lookup_fails else pending[:1]
+    assert stored_logos(logo_dir) == sorted(Path(name).name for name in expected)
+    assert (logo_dir / Path(pending[0]).name).read_bytes() == b"synthetic logo"
+    if lookup_fails:
+        assert "synthetic reference lookup failure" in stderr.getvalue()
 
 
 @pytest.mark.django_db(transaction=True)

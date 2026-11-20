@@ -341,12 +341,28 @@ class Command(BaseCommand):
             raise
 
     def _remove_stored_logos(self, storage, names: list[str], using: str) -> None:
+        if not names:
+            return
+        try:
+            # The seed list bounds the number of allocations in this lookup.
+            referenced = set(
+                Service.objects.using(using)
+                .filter(logo_file__in=names)
+                .order_by()
+                .values_list("logo_file", flat=True)
+                .distinct()
+            )
+        except Exception as error:  # noqa: BLE001 - retain allocations if ownership is unknown
+            with suppress(Exception):
+                self.stderr.write(self.style.WARNING(f"Could not check references for seed logo files: {error}"))
+            return
+
         for name in names:
+            if name in referenced:
+                continue
             # A failed diagnostic must not interrupt cleanup or replace a seed error.
             with suppress(Exception):
                 try:
-                    if Service.objects.using(using).filter(logo_file=name).exists():
-                        continue
                     storage.delete(name)
                 except Exception as error:  # noqa: BLE001 - report the failure and keep cleaning up
                     self.stderr.write(self.style.WARNING(f"Could not remove logo file {name}: {error}"))

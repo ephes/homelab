@@ -156,7 +156,7 @@ uses its icon fallback.
 
 The command reports created and kept services, added logos, and the total only
 after the database commits. Cleanup diagnostics for a failed run go to stderr.
-If stderr fails, the command continues checking its remaining logo allocations
+If stderr fails, the command continues cleaning up eligible logo allocations
 and preserves the original seed error.
 
 OpsGate was retired on 2026-11-10 (stopped, data kept): its production tile is set
@@ -203,10 +203,12 @@ upload created in the meantime.
 
 A callback can fail after the database commit has already succeeded. The command
 still reports that original exception, but preserves every newly allocated logo
-referenced by committed rows on the write database. Cleanup deletes only verified
-unreferenced allocations; if the reference check or deletion fails, it reports the
-cleanup problem without replacing the original exception. A retry preserves the
-committed services and logos. This command change takes effect when the updated
+referenced by committed rows on the write database. Cleanup checks pending
+allocations in one query on that database. If the lookup fails, cleanup keeps
+all pending files. If an individual deletion fails, cleanup still tries the
+other unreferenced files. Cleanup reports these problems on stderr and preserves
+the original exception. A retry preserves the committed services and logos.
+This command change takes effect when the updated
 command is next run; no automatic rerun is required.
 
 ## Icon Selection Guide
