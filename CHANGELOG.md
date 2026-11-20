@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Capture the default-service total inside the seed transaction so deferred
+  output reflects that run and a count failure rolls back the seed.
 - Check pending seed logo references in one query and retain the files if the
   lookup fails.
 - Index stored service logo names for exact and bulk cleanup lookups. Apply

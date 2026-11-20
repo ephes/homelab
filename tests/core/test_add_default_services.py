@@ -381,19 +381,32 @@ def test_failed_row_save_after_logo_was_stored_removes_that_logo(logo_dir, monke
 
 
 @pytest.mark.django_db(transaction=True)
-def test_failure_after_commit_keeps_the_committed_logos(logo_dir, monkeypatch):
+def test_seed_count_failure_rolls_back_without_success_output(logo_dir, monkeypatch):
     def fail(*args, **kwargs):
-        raise RuntimeError("late failure")
+        raise OperationalError("synthetic count failure")
 
-    monkeypatch.setattr(type(Service.objects.all()), "count", fail)
-    stderr = StringIO()
+    stdout, stderr = StringIO(), StringIO()
+    with monkeypatch.context() as patch:
+        patch.setattr(type(Service.objects.all()), "count", fail)
+        with pytest.raises(OperationalError, match="synthetic count failure"):
+            call_command("add_default_services", stdout=stdout, stderr=stderr)
 
-    # The final count runs outside the transaction: the services are committed and keep their logos.
-    with pytest.raises(RuntimeError):
-        call_command("add_default_services", stdout=StringIO(), stderr=stderr)
+    assert stdout.getvalue() == ""
+    assert Service.objects.count() == 0
+    assert stored_logos(logo_dir) == []
 
-    assert stored_logos(logo_dir) != []
-    assert "Removed logo file" not in stderr.getvalue()
+
+@pytest.mark.django_db(transaction=True)
+def test_deferred_seed_summary_uses_count_recorded_before_later_write(logo_dir):
+    stdout, stderr = StringIO(), StringIO()
+    with transaction.atomic():
+        call_command("add_default_services", stdout=stdout, stderr=stderr)
+        seed_total = Service.objects.count()
+        Service.objects.create(name="Synthetic later service")
+        assert stdout.getvalue() == ""
+
+    assert Service.objects.count() == seed_total + 1
+    assert stdout.getvalue().splitlines()[-1] == f"Total services in database: {seed_total}"
 
 
 def test_retry_after_failed_run_leaves_one_logo_per_service(logo_dir, monkeypatch):

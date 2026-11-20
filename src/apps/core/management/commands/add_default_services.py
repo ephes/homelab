@@ -282,7 +282,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(message))
             for warning in warnings:
                 self.stderr.write(self.style.WARNING(warning))
-            total = Service.objects.using(using).count()
             self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
 
         try:
@@ -333,6 +332,7 @@ class Command(BaseCommand):
                     status = "Created" if created else "Kept"
                     messages.append(f"{status} service: {service.name}")
 
+                total = Service.objects.using(using).count()
                 transaction.on_commit(report_success, using=using)
         except BaseException:
             # An on_commit callback can fail after rows have committed. Only

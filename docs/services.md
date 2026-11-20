@@ -155,7 +155,10 @@ packaged image is missing, the command warns on stderr after commit and the tile
 uses its icon fallback.
 
 The command reports created and kept services, added logos, and the total only
-after the database commits. Cleanup diagnostics for a failed run go to stderr.
+after the database commits. It counts services inside the seed transaction, so
+later writes leave the reported total unchanged. If counting fails, the seed
+rolls back before publishing success messages. Cleanup diagnostics for a failed
+run go to stderr.
 If stderr fails, the command continues cleaning up eligible logo allocations
 and preserves the original seed error.
 
