@@ -138,7 +138,7 @@ Homelab supports custom logo files for services, providing a more polished appea
 
 **Default Service Logos**:
 Several built-in services, including Home Assistant, Nyxmon, and Graphyard, come with pre-configured
-logos, while others such as Grafana, Archive, OpsGate, and Work (the agent work ledger at
+logos, while others such as FastDeploy, Grafana, Archive, OpsGate, and Work (the agent work ledger at
 `https://work.home.xn--wersdrfer-47a.de/`) use a curated icon fallback. They are
 automatically added when you run:
 ```bash

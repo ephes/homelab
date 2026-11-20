@@ -550,3 +550,14 @@ def test_renamed_minio_tile_gets_the_rustfs_logo_on_reseed(logo_dir):
     rustfs = Service.objects.get(name="RustFS")
     assert Path(rustfs.logo_file.name).name.startswith("rustfs")
     assert not Service.objects.filter(name="MinIO").exists()
+
+
+def test_every_default_logo_is_packaged():
+    logos_dir = Path(add_default_services.__file__).parent.parent.parent / "static" / "core" / "logos"
+    missing = [
+        service["logo_filename"]
+        for service in add_default_services.Command()._default_services()
+        if service.get("logo_filename") and not (logos_dir / service["logo_filename"]).is_file()
+    ]
+
+    assert missing == []

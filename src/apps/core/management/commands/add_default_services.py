@@ -51,7 +51,6 @@ class Command(BaseCommand):
                 "description": "Deployment automation platform for managing web applications via API and web interface",
                 "url": "https://deploy.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-rocket",
-                "logo_filename": "fastdeploy.png",
                 "order": 5,
             },
             {

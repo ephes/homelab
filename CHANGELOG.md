@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Warn when a default service falls back to its icon because the packaged logo is missing.
+- Warn when a default service falls back to its icon because the packaged logo is missing. FastDeploy
+  no longer names a logo that was never packaged, so a default seed run stays quiet.
 
 - Continue cleaning up unused seed logos and preserve the original seed error if stderr fails.
 
