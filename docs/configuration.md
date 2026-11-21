@@ -124,11 +124,12 @@ Direct ORM/storage writes and built-in seed assets do not pass through this form
 Django serves media from verified opened single-link regular-file descriptors
 (see [Settings](settings.md); hard-linked files return 404) with `nosniff`
 and a sandbox Content Security Policy, including conditional responses. Each
-response carries `Last-Modified` and an opaque weak `ETag` derived from the opened
-file's device, inode, size and nanosecond modification/change timestamps. The tag
-identifies a filesystem generation rather than a content digest; replacing a file
-or updating it within one second invalidates its previous tag without reading the
-whole media file. It relies on the filesystem updating this metadata normally.
+response carries an opaque weak `ETag` derived from the opened file's device,
+inode, size and nanosecond modification/change timestamps. The response includes
+`Last-Modified` when the modification timestamp can be formatted as an HTTP date.
+The tag identifies the filesystem generation from its metadata. Replacing a file
+or updating it within one second invalidates its previous tag without reading
+the whole media file. This relies on the filesystem updating the metadata normally.
 An already-open response continues to serve its opened generation after atomic
 path replacement.
 

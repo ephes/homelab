@@ -269,6 +269,50 @@ def test_media_not_modified_closes_opened_descriptor(client, settings, tmp_path,
     assert all(source.closed for source in opened)
 
 
+@pytest.mark.parametrize("error_type", [OverflowError, OSError, ValueError])
+def test_media_invalid_date_keeps_etag_and_closes_source(client, settings, tmp_path, monkeypatch, error_type):
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    logo = tmp_path / "logo.svg"
+    logo.write_bytes(b"synthetic logo")
+    timestamp = 1_234_567_890
+    os.utime(logo, (timestamp, timestamp))
+    opened = []
+    original_open = media._open_regular_file
+
+    def record_source(path):
+        source, metadata = original_open(path)
+        opened.append(source)
+        return source, metadata
+
+    def reject_date(value):
+        assert value == timestamp
+        raise error_type("synthetic unsupported timestamp")
+
+    monkeypatch.setattr(media, "_open_regular_file", record_source)
+    monkeypatch.setattr(media, "http_date", reject_date)
+
+    response = client.get("/media/logo.svg")
+    try:
+        assert response.status_code == 200
+        assert not opened[0].closed
+        assert b"".join(response.streaming_content) == b"synthetic logo"
+    finally:
+        response.close()
+    assert opened[0].closed
+
+    cached = client.get("/media/logo.svg", HTTP_IF_NONE_MATCH=response["ETag"])
+    assert cached.status_code == 304
+    assert len(opened) == 2
+    assert opened[1].closed
+    for result in (response, cached):
+        assert result["ETag"] == response["ETag"]
+        assert "Last-Modified" not in result
+        assert result["X-Content-Type-Options"] == "nosniff"
+        assert result["Content-Security-Policy"] == MEDIA_CONTENT_SECURITY_POLICY
+
+
 @pytest.mark.parametrize("stage", ["raw", "buffer", "closed_buffer"])
 @pytest.mark.parametrize("error_type", [OSError, RuntimeError, MemoryError])
 def test_media_wrapper_failure_closes_all_descriptors(client, settings, tmp_path, monkeypatch, error_type, stage):

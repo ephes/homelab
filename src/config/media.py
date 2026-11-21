@@ -157,24 +157,33 @@ def serve_media(request, path):
         # exposing raw filesystem identifiers or hashing unbounded media bytes.
         generation = (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
         etag = f'W/"{sha256(str(generation).encode("ascii")).hexdigest()}"'
+        headers = {
+            "ETag": etag,
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": MEDIA_CONTENT_SECURITY_POLICY,
+        }
+        try:
+            headers["Last-Modified"] = http_date(opened.st_mtime)
+        except (OverflowError, OSError, ValueError):
+            # The timestamp can fall outside the HTTP-date formatter's range.
+            pass
         # Only If-None-Match is evaluated: an HTTP date cannot distinguish
         # generations within the same second, and a weak validator cannot
         # satisfy If-Match, so other preconditions keep serving full content.
         if _if_none_match_hits(request, etag):
-            source.close()
-            response = HttpResponseNotModified()
+            response = HttpResponseNotModified(headers=headers)
         else:
             content_type, encoding = mimetypes.guess_type(normalized_path)
-            response = FileResponse(
-                source, content_type=content_type or "application/octet-stream", filename=normalized_path
-            )
             if encoding:
-                response["Content-Encoding"] = encoding
+                headers["Content-Encoding"] = encoding
+            return FileResponse(
+                source,
+                content_type=content_type or "application/octet-stream",
+                filename=normalized_path,
+                headers=headers,
+            )
     except BaseException:
-        source.close()
+        _retire_file(source)
         raise
-    response["ETag"] = etag
-    response["Last-Modified"] = http_date(opened.st_mtime)
-    response["X-Content-Type-Options"] = "nosniff"
-    response["Content-Security-Policy"] = MEDIA_CONTENT_SECURITY_POLICY
+    source.close()
     return response

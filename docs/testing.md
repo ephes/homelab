@@ -448,8 +448,10 @@ streaming after replacement, internal links and conditional/header behavior.
 Same-second atomic replacement (even with the same size and exact mtime) and
 in-place updates invalidate old ETags. Current weak/strong tag forms, tag lists
 and `*` return 304; stale/invalid tags and date-only requests return 200.
-Both statuses retain ETag, Last-Modified and hardening headers, and their opened
-descriptors close on the appropriate response path.
+Both statuses retain ETag and hardening headers, and their opened descriptors
+close on the appropriate response path. A formatter that rejects the opened
+timestamp omits Last-Modified on both paths while preserving streaming and ETag
+revalidation.
 Injected root-resolution failures must return 404 before any media file is opened;
 a subsequent request with the restored root must stream normally.
 Injected file-wrapper failures after a successful raw open must close every acquired
