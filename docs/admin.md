@@ -28,9 +28,9 @@ password, until the 15-minute window ends: from that address for that username,
 from that address for all usernames, or from every address in that network.
 The client address is the one Traefik appended to `X-Forwarded-For`. A
 successful login clears the username budget for its address. If a database
-error prevents the refund after a correct password, the admin shows the usual
-login error. The attempt stays charged and the application logs the database
-error.
+error prevents the refund after a correct password, the attempt stays charged
+and the admin shows the usual login error even if logging fails. When logging
+is available, the application records the original database error.
 
 The username and address budgets use the exact address, so a few failures on
 one LAN device do not lock out the others. The network budget is shared on

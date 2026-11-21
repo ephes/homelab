@@ -1,5 +1,7 @@
 """Failed admin logins are limited per username and address, per address, and per network."""
 
+from unittest.mock import Mock
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import OperationalError
@@ -7,6 +9,7 @@ from django.db.models import QuerySet
 from django.test import Client, override_settings
 from django.urls import reverse
 
+from apps.core import login_throttle
 from apps.core.login_throttle import EXPIRED_ROWS_PER_ATTEMPT
 from apps.core.models import LoginThrottleBucket
 
@@ -73,21 +76,27 @@ def test_success_resets_the_username_budget_for_that_address(owner):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_refund_database_failure_refuses_login_and_preserves_charges(owner, monkeypatch):
+@pytest.mark.parametrize("logging_fails", [False, True], ids=["logging-works", "logging-fails"])
+def test_refund_database_failure_refuses_login_and_preserves_charges(owner, monkeypatch, caplog, logging_fails):
     address = "192.0.2.50"
     fail(address, 1)
     update = QuerySet.update
     refund_updates = []
+    storage_error = OperationalError("refund storage interrupted")
 
     def fail_second_refund(queryset, **changes):
         if queryset.model is LoginThrottleBucket and "failures" in changes and "charge_sequence" not in changes:
             if refund_updates:
-                raise OperationalError("refund storage interrupted")
+                raise storage_error
             refund_updates.append(update(queryset, **changes))
             return refund_updates[0]
         return update(queryset, **changes)
 
     monkeypatch.setattr(QuerySet, "update", fail_second_refund)
+    if logging_fails:
+        diagnostic = Mock(side_effect=OSError("log sink unavailable"))
+        monkeypatch.setattr(login_throttle.logger, "exception", diagnostic)
+
     client = Client()
     response = client.post(
         reverse("admin:login"),
@@ -100,6 +109,10 @@ def test_refund_database_failure_refuses_login_and_preserves_charges(owner, monk
     assert response.context["form"].errors.as_data()["__all__"][0].code == "invalid_login"
     assert "_auth_user_id" not in client.session
     assert list(LoginThrottleBucket.objects.values_list("failures", "charge_sequence")) == [(2, 2)] * 3
+    if logging_fails:
+        diagnostic.assert_called_once()
+    else:
+        assert any(record.exc_info and record.exc_info[1] is storage_error for record in caplog.records)
 
 
 def test_address_budget_covers_many_usernames(owner):

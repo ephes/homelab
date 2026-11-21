@@ -32,6 +32,7 @@ import hashlib
 import ipaddress
 import logging
 import time
+from contextlib import suppress
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
@@ -153,7 +154,9 @@ class LoginThrottleBackend(ModelBackend):
         try:
             _refund(charge)
         except DatabaseError as exc:
-            logger.exception("Could not refund login throttle reservation")
+            # A failed diagnostic must not mask the storage error or change the refusal.
+            with suppress(Exception):
+                logger.exception("Could not refund login throttle reservation")
             raise PermissionDenied("Login throttle storage unavailable.") from exc
         return user
 
