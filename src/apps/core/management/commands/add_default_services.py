@@ -325,6 +325,7 @@ class Command(BaseCommand):
                             )
                         else:
                             with source:
+                                opened = os.fstat(source.fileno())
                                 # Reserve and record an exclusively owned name
                                 # before copying any bytes so cleanup can remove
                                 # even a partially written logo.
@@ -335,9 +336,21 @@ class Command(BaseCommand):
                                     max_length=logo_field.max_length,
                                 )
                                 stored_logo_names.append(reserved_name)
+                                remaining = opened.st_size
                                 with logo_storage.open(reserved_name, "wb") as destination:
-                                    for chunk in File(source).chunks():
+                                    while remaining:
+                                        chunk = source.read(min(remaining, File.DEFAULT_CHUNK_SIZE))
+                                        if not chunk:
+                                            break
                                         write_logo_chunk(destination, chunk)
+                                        remaining -= len(chunk)
+                                copied = os.fstat(source.fileno())
+                                if remaining or (
+                                    copied.st_size,
+                                    copied.st_mtime_ns,
+                                    copied.st_ctime_ns,
+                                ) != (opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns):
+                                    raise OSError(f"Packaged logo changed while copying: {logo_filename}")
                             # Storage I/O may outlive an owner edit. Reload and lock
                             # before attaching, and write only the logo and revision.
                             service = Service.objects.using(using).select_for_update().get(pk=service.pk)

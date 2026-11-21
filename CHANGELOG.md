@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Verify the size and generation of packaged logos before attaching them and
+  roll back seeding if a source changes during copying.
 - Limit the connection diagnostics' forwarded-header preview to 256 characters
   while keeping client address selection and classification intact.
 - Keep quick-edit row selection, revision checks and saves on the writer

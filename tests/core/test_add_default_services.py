@@ -1,4 +1,5 @@
 import errno
+import os
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
@@ -103,14 +104,6 @@ def test_logo_copy_preserves_intervening_owner_save(logo_dir, monkeypatch, owner
     # SQLite serializes independent writers; this deterministic seam also
     # exercises the stale snapshot possible on row-locking databases.
     monkeypatch.setattr(storage, "open", open_after_owner_save)
-    original_chunks = File.chunks
-    monkeypatch.setattr(
-        File,
-        "chunks",
-        lambda self, chunk_size=None: iter([b"synthetic seed logo"])
-        if self.name
-        else original_chunks(self, chunk_size),
-    )
     call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
 
     assert len(edits) == 1
@@ -120,7 +113,7 @@ def test_logo_copy_preserves_intervening_owner_save(logo_dir, monkeypatch, owner
         assert after[field] == before[field]
     service.refresh_from_db()
     with service.logo_file.open("rb") as source:
-        assert source.read() == (b"owner logo" if owner_logo else b"synthetic seed logo")
+        assert source.read() == (b"owner logo" if owner_logo else (LOGOS / "home-assistant.png").read_bytes())
     if owner_logo:
         assert after == before
     else:
@@ -184,12 +177,6 @@ def test_compensated_seed_name_is_not_deleted_again_after_later_failure(logo_dir
     monkeypatch.setattr(storage, "save", save)
     monkeypatch.setattr(storage, "open", open_after_competing_logo)
     monkeypatch.setattr(storage, "delete", delete_then_reuse)
-    original_chunks = File.chunks
-    monkeypatch.setattr(
-        File,
-        "chunks",
-        lambda self, chunk_size=None: iter([b"synthetic logo"]) if self.name else original_chunks(self, chunk_size),
-    )
     with pytest.raises(OSError, match="later synthetic allocation failure"):
         call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
 
@@ -244,21 +231,24 @@ def test_failed_logo_save_rolls_back_without_success_output(logo_dir, monkeypatc
 
 def fail_logo_write_after_first_chunk(monkeypatch, failing_file):
     """Let the storage create the destination file, then fail while writing it (disk full)."""
-    original = File.chunks
+    storage = Service._meta.get_field("logo_file").storage
+    original_open = storage.open
+    original_write = add_default_services.write_logo_chunk
     opened = []
 
-    def chunks(self, chunk_size=None):
-        if not self.name:
-            # The empty reservation file, not a logo source.
-            yield from original(self, chunk_size)
-            return
-        opened.append(self.name)
-        if len(opened) == failing_file:
-            yield b"partial123"
-            raise OSError(errno.ENOSPC, "No space left on device")
-        yield from original(self, chunk_size)
+    def open_destination(name, mode="rb"):
+        if mode == "wb":
+            opened.append(name)
+        return original_open(name, mode)
 
-    monkeypatch.setattr(File, "chunks", chunks)
+    def write(destination, chunk):
+        if len(opened) == failing_file:
+            original_write(destination, chunk[:10])
+            raise OSError(errno.ENOSPC, "No space left on device")
+        original_write(destination, chunk)
+
+    monkeypatch.setattr(storage, "open", open_destination)
+    monkeypatch.setattr(add_default_services, "write_logo_chunk", write)
     return opened
 
 
@@ -303,6 +293,52 @@ def test_short_write_rolls_back_seed_and_removes_partial_logo(logo_dir, monkeypa
     service.refresh_from_db()
     assert not service.logo_file
     assert stored_logos(logo_dir) == []
+
+
+@pytest.mark.parametrize("change", ["truncate", "append", "rewrite"])
+def test_changed_packaged_logo_rolls_back_seed(logo_dir, tmp_path, monkeypatch, change):
+    packaged_logos = tmp_path / "static" / "core" / "logos"
+    packaged_logos.mkdir(parents=True)
+    source = packaged_logos / "changing.svg"
+    content = b"x" * (File.DEFAULT_CHUNK_SIZE + 16)
+    source.write_bytes(content)
+    opened = source.stat()
+    monkeypatch.setattr(
+        add_default_services, "__file__", str(tmp_path / "management" / "commands" / "add_default_services.py")
+    )
+    monkeypatch.setattr(
+        add_default_services.Command,
+        "_default_services",
+        lambda self: [{"name": "Seed service", "logo_filename": source.name}],
+    )
+    owner = Service.objects.create(name="Owner service")
+    owner.logo_file.save(source.name, ContentFile(b"owner logo"))
+    before = Service.objects.values().get(pk=owner.pk)
+    written = []
+    original_write = add_default_services.write_logo_chunk
+
+    def write_and_change_source(destination, chunk):
+        original_write(destination, chunk)
+        written.append(len(chunk))
+        if len(written) == 1:
+            if change == "truncate":
+                source.write_bytes(b"")
+            elif change == "append":
+                with source.open("ab") as stream:
+                    stream.write(b"appended bytes")
+            else:
+                source.write_bytes(b"y" * len(content))
+                os.utime(source, ns=(opened.st_atime_ns, opened.st_mtime_ns - 1_000_000_000))
+
+    monkeypatch.setattr(add_default_services, "write_logo_chunk", write_and_change_source)
+
+    with pytest.raises(OSError, match="Packaged logo changed"):
+        call_command("add_default_services", stdout=StringIO(), stderr=StringIO())
+
+    assert sum(written) == (File.DEFAULT_CHUNK_SIZE if change == "truncate" else len(content))
+    assert list(Service.objects.values()) == [before]
+    assert stored_logos(logo_dir) == [source.name]
+    assert (logo_dir / source.name).read_bytes() == b"owner logo"
 
 
 def test_partial_write_never_removes_an_existing_logo_with_the_same_name(logo_dir, monkeypatch):
@@ -472,8 +508,7 @@ def test_broken_cleanup_diagnostics_preserve_original_failure(logo_dir, monkeypa
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("lookup_fails", [False, True])
-def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, monkeypatch, lookup_fails):
-    monkeypatch.setattr(File, "chunks", lambda self, chunk_size=None: iter([b"synthetic logo"]))
+def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails):
     pending = []
     cleanup_queries = []
 
@@ -504,17 +539,23 @@ def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, monkeypatch,
     assert set(cleanup_queries[0]) == set(pending)
     expected = pending if lookup_fails else pending[:1]
     assert stored_logos(logo_dir) == sorted(Path(name).name for name in expected)
-    assert (logo_dir / Path(pending[0]).name).read_bytes() == b"synthetic logo"
+    retained = Path(pending[0]).name
+    assert (logo_dir / retained).read_bytes() == (LOGOS / retained).read_bytes()
     if lookup_fails:
         assert "synthetic reference lookup failure" in stderr.getvalue()
 
 
 @pytest.mark.django_db(transaction=True)
-def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatch):
+def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir):
     from django.db.models.signals import post_save
 
     scheduled = []
     expected = {}
+    packaged_names = {
+        data["name"]: data["logo_filename"]
+        for data in add_default_services.Command()._default_services()
+        if "logo_filename" in data
+    }
 
     def fail():
         raise RuntimeError("synthetic callback failed after commit")
@@ -523,12 +564,11 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatc
         if instance.logo_file:
             with instance.logo_file.open("rb") as source:
                 expected[instance.logo_file.name] = source.read()
+            assert expected[instance.logo_file.name] == (LOGOS / packaged_names[instance.name]).read_bytes()
             if not scheduled:
                 scheduled.append(using)
                 transaction.on_commit(fail, using=using)
 
-    # Synthetic logo bytes only; no deployed media or external services.
-    monkeypatch.setattr(File, "chunks", lambda self, chunk_size=None: iter([b"synthetic logo"]))
     post_save.connect(schedule, sender=Service, weak=False)
     stderr = StringIO()
     try:
@@ -544,7 +584,7 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatc
     storage = Service._meta.get_field("logo_file").storage
     for name, content in expected.items():
         with storage.open(name, "rb") as source:
-            assert source.read() == content == b"synthetic logo"
+            assert source.read() == content
     assert "Removed logo file" not in stderr.getvalue()
 
 

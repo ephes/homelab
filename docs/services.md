@@ -198,8 +198,10 @@ that run are removed again, including a logo that was only partly written (for e
 the disk is full), so a retry does not pile up suffixed copies. Logos that existed
 before the run are never touched. This is not a general media cleanup: files orphaned by
 other means stay where they are.
-If storage reports a short write, the command aborts before attaching the partial
-logo and removes that allocation after rollback.
+The command copies only the size recorded when opening the packaged logo. If the
+source ends early, its size or timestamps change during copying, or storage
+reports a short write, the command aborts before attaching the logo and removes
+that allocation after rollback.
 
 Each logo name is first reserved through the storage, which picks a free name and creates the
 file atomically; only names reserved by the failing run are removed, never a file another
