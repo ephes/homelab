@@ -8,7 +8,8 @@ TAILSCALE_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_networ
 
 def client_address(request, *, unknown: str = "unknown") -> str:
     """Use Traefik's rightmost forwarded entry, or fall back to the socket address."""
-    candidate = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[-1].strip()
+    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    candidate = forwarded_for[forwarded_for.rfind(",") + 1 :].strip()
     if candidate:
         try:
             return str(ipaddress.ip_address(candidate))

@@ -8,7 +8,11 @@ Access your services at http://localhost:8000 (or your production URL).
 
 Open `/connection-info/` to see the client address and proxy information for
 the current request. The Tailscale badge covers IPv4 and IPv6 tailnet addresses,
-including IPv4-mapped IPv6 addresses for the IPv4 range. The response uses `Cache-Control: private, no-store`.
+including IPv4-mapped IPv6 addresses for the IPv4 range. The response uses
+`Cache-Control: private, no-store`.
+The forwarded-header preview shows at most 256 characters. For longer headers it
+shows an ellipsis and the last 255 characters. Client classification still uses
+the proxy-appended rightmost entry from the original header.
 
 ## Managing Services
 

@@ -166,6 +166,18 @@ class TestConnectionInfoView:
         assert response.context["is_tailscale"] is False
         assert response.context["is_local"] is False
 
+    def test_long_forwarded_chain_is_truncated_without_changing_classification(self, client):
+        forwarded_for = "198.51.100.42, " * 1000 + "100.119.21.5"
+        response = self.get(client, xff=forwarded_for)
+
+        assert response.status_code == 200
+        assert response.context["client_ip"] == "100.119.21.5"
+        assert response.context["is_tailscale"] is True
+        assert response.context["is_local"] is False
+        preview = "…" + forwarded_for[-255:]
+        assert response.context["forwarded_for"] == preview
+        assert preview.encode() in response.content
+
     def test_spoofed_local_address_is_ignored(self, client):
         response = self.get(client, xff="192.168.178.10,8.8.4.4")
         assert response.context["client_ip"] == "8.8.4.4"

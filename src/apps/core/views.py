@@ -5,6 +5,8 @@ from django.views.generic import ListView
 from .client_addresses import canonical_ip, client_address, is_tailscale
 from .models import Service
 
+FORWARDED_FOR_PREVIEW_LENGTH = 256
+
 
 class HomeView(ListView):
     """Homepage view showing all active services."""
@@ -21,6 +23,8 @@ class HomeView(ListView):
 def connection_info(request):
     """Display connection information for debugging."""
     x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+    if x_forwarded_for and len(x_forwarded_for) > FORWARDED_FOR_PREVIEW_LENGTH:
+        x_forwarded_for = "…" + x_forwarded_for[-(FORWARDED_FOR_PREVIEW_LENGTH - 1) :]
     client_ip = client_address(request, unknown="Unknown")
     ip = canonical_ip(client_ip)
     tailscale = ip is not None and is_tailscale(ip)
