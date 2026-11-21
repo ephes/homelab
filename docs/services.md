@@ -151,8 +151,9 @@ The command creates missing defaults by name and preserves all fields on existin
 services, including owner URLs, descriptions, icons, display order and active status.
 It still fills a missing built-in logo without replacing an existing logo. To reset
 a service, edit it explicitly in the admin. When a service needs a logo and the
-packaged image is missing, the command warns on stderr after commit and the tile
-uses its icon fallback.
+packaged image is missing or is a nonregular file (such as a directory or FIFO),
+the command skips logo storage, warns on stderr after commit and the tile uses
+its icon fallback.
 
 The command reports created and kept services, added logos, and the total only
 after the database commits. It counts services inside the seed transaction, so

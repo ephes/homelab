@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 from django.core.files import File
@@ -548,10 +549,15 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir, monkeypatc
 
 
 @pytest.mark.django_db(transaction=True)
-def test_missing_packaged_logo_reports_fallback_without_interrupting_seed(logo_dir, tmp_path, monkeypatch, client):
+@pytest.mark.parametrize("is_directory", [False, True], ids=["missing", "directory"])
+def test_unavailable_packaged_logo_reports_fallback_without_interrupting_seed(
+    logo_dir, tmp_path, monkeypatch, client, is_directory
+):
     packaged_logos = tmp_path / "static" / "core" / "logos"
     packaged_logos.mkdir(parents=True)
     (packaged_logos / "available.svg").write_bytes(b"<svg/>")
+    if is_directory:
+        (packaged_logos / "unavailable.svg").mkdir()
     monkeypatch.setattr(
         add_default_services, "__file__", str(tmp_path / "management" / "commands" / "add_default_services.py")
     )
@@ -559,13 +565,17 @@ def test_missing_packaged_logo_reports_fallback_without_interrupting_seed(logo_d
         add_default_services.Command,
         "_default_services",
         lambda self: [
-            {"name": "Fallback service", "icon": "fas fa-rocket", "logo_filename": "missing.svg"},
+            {"name": "Fallback service", "icon": "fas fa-rocket", "logo_filename": "unavailable.svg"},
             {"name": "Logo service", "logo_filename": "available.svg"},
         ],
     )
     stdout, stderr = StringIO(), StringIO()
 
-    call_command("add_default_services", stdout=stdout, stderr=stderr)
+    storage = Service._meta.get_field("logo_file").storage
+    with patch.object(storage, "save", wraps=storage.save) as save:
+        call_command("add_default_services", stdout=stdout, stderr=stderr)
+
+    assert [Path(call.args[0]).name for call in save.call_args_list] == ["available.svg"]
 
     fallback = Service.objects.get(name="Fallback service")
     assert fallback.is_active and not fallback.logo_file
@@ -574,8 +584,9 @@ def test_missing_packaged_logo_reports_fallback_without_interrupting_seed(logo_d
         assert logo.read() == b"<svg/>"
     assert "Created service: Fallback service" in stdout.getvalue()
     assert "Added logo for Logo service" in stdout.getvalue()
+    reason = "Nonregular" if is_directory else "Missing"
     assert stderr.getvalue().splitlines() == [
-        "Missing packaged logo missing.svg for Fallback service (using icon fallback)"
+        f"{reason} packaged logo unavailable.svg for Fallback service (using icon fallback)"
     ]
 
     fallback.logo_file.save("custom.svg", ContentFile(b"<svg/>"))

@@ -1,3 +1,5 @@
+import os
+import stat
 from contextlib import suppress
 from pathlib import Path
 
@@ -8,6 +10,22 @@ from django.db import router, transaction
 
 from apps.core.logo_storage import write_logo_chunk
 from apps.core.models import Service
+
+
+class NonregularPackagedLogoError(OSError):
+    pass
+
+
+def open_regular_logo(path, flags):
+    # A FIFO can block during open, before its descriptor can be checked.
+    fd = os.open(path, flags | os.O_NONBLOCK)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise NonregularPackagedLogoError(path)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
 
 
 class Command(BaseCommand):
@@ -295,27 +313,31 @@ class Command(BaseCommand):
 
                     if logo_filename and not service.logo_file:
                         logo_path = logos_dir / logo_filename
-                        if not logo_path.exists():
+                        try:
+                            source = open(logo_path, "rb", opener=open_regular_logo)
+                        except FileNotFoundError:
                             warnings.append(
                                 f"Missing packaged logo {logo_filename} for {service.name} (using icon fallback)"
                             )
-                        else:
-                            # Reserve the name first: storage.save() picks a free name
-                            # and creates the (still empty) file atomically, so the name
-                            # it returns is ours and nobody else's. Only names returned
-                            # here are ever removed by the cleanup.
-                            logo_field = service.logo_file.field
-                            reserved_name = logo_storage.save(
-                                logo_field.generate_filename(service, logo_filename),
-                                ContentFile(b""),
-                                max_length=logo_field.max_length,
+                        except NonregularPackagedLogoError:
+                            warnings.append(
+                                f"Nonregular packaged logo {logo_filename} for {service.name} (using icon fallback)"
                             )
-                            stored_logo_names.append(reserved_name)
-                            # Fill the reserved file. If this fails half way (disk full),
-                            # the partial file is already recorded and gets removed.
-                            with open(logo_path, "rb") as f, logo_storage.open(reserved_name, "wb") as destination:
-                                for chunk in File(f).chunks():
-                                    write_logo_chunk(destination, chunk)
+                        else:
+                            with source:
+                                # Reserve and record an exclusively owned name
+                                # before copying any bytes so cleanup can remove
+                                # even a partially written logo.
+                                logo_field = service.logo_file.field
+                                reserved_name = logo_storage.save(
+                                    logo_field.generate_filename(service, logo_filename),
+                                    ContentFile(b""),
+                                    max_length=logo_field.max_length,
+                                )
+                                stored_logo_names.append(reserved_name)
+                                with logo_storage.open(reserved_name, "wb") as destination:
+                                    for chunk in File(source).chunks():
+                                        write_logo_chunk(destination, chunk)
                             # Storage I/O may outlive an owner edit. Reload and lock
                             # before attaching, and write only the logo and revision.
                             service = Service.objects.using(using).select_for_update().get(pk=service.pk)
