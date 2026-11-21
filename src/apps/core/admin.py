@@ -31,6 +31,7 @@ LOGO_SIZE_ERROR = "Logo files must be at most 1 MiB (1,048,576 bytes)."
 
 class ServiceAdminForm(forms.ModelForm):
     original_revision = forms.DateTimeField(widget=forms.HiddenInput, required=False)
+    write_database: str | None = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -57,7 +58,7 @@ class ServiceAdminForm(forms.ModelForm):
     def clean(self):
         cleaned = super().clean()
         if not self.instance._state.adding and not self.errors:
-            using = router.db_for_write(Service, instance=self.instance)
+            using = self.write_database or router.db_for_write(Service, instance=self.instance)
             revision = cleaned.get("original_revision")
             # Both admin entry points keep validation and save in one atomic
             # block. A conditional no-op UPDATE checks the revision and takes a
@@ -89,6 +90,8 @@ class ServiceAdmin(admin.ModelAdmin):
         queryset = super().get_queryset(request)
         if hasattr(request, "_service_delete_using"):
             return queryset.using(request._service_delete_using)
+        if hasattr(request, "_service_list_edit_using"):
+            return queryset.using(request._service_list_edit_using)
         return queryset
 
     def _delete_payload(self, request, objects, using, mode):
@@ -186,14 +189,21 @@ class ServiceAdmin(admin.ModelAdmin):
             return self._delete_conflict(request)
 
     def get_changelist_form(self, request, **kwargs):
-        return super().get_changelist_form(request, form=ServiceAdminForm, **kwargs)
+        form = super().get_changelist_form(request, form=ServiceAdminForm, **kwargs)
+        form.write_database = getattr(request, "_service_list_edit_using", None)
+        return form
 
     def changelist_view(self, request, extra_context=None):
         # Django otherwise validates list-editable forms before its save block.
         if request.method != "POST" or "_save" not in request.POST:
             return super().changelist_view(request, extra_context)
-        with transaction.atomic(using=router.db_for_write(self.model)):
-            return super().changelist_view(request, extra_context)
+        using = router.db_for_write(self.model)
+        request._service_list_edit_using = using
+        try:
+            with transaction.atomic(using=using):
+                return super().changelist_view(request, extra_context)
+        finally:
+            del request._service_list_edit_using
 
     def _retire_logos(self, names, using):
         names = set(names) - {""}
@@ -247,7 +257,8 @@ class ServiceAdmin(admin.ModelAdmin):
             del request._service_logo_uploads
 
     def save_model(self, request, obj, form, change):
-        using = router.db_for_write(self.model, instance=obj)
+        list_edit_using = getattr(request, "_service_list_edit_using", None)
+        using = list_edit_using or router.db_for_write(self.model, instance=obj)
         old_name = ""
         if change:
             old_name = self.model.objects.using(using).get(pk=obj.pk).logo_file.name
@@ -271,7 +282,10 @@ class ServiceAdmin(admin.ModelAdmin):
                             raise forms.ValidationError(LOGO_SIZE_ERROR)
                         write_logo_chunk(destination, chunk)
                 obj.logo_file = name
-            super().save_model(request, obj, form, change)
+            if list_edit_using is None:
+                super().save_model(request, obj, form, change)
+            else:
+                obj.save(using=using)
         except BaseException:
             # Inside a transaction on the write alias the row change rolls back
             # with this error. In autocommit (the change form's transaction runs

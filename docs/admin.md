@@ -123,6 +123,11 @@ held through the save. This protects admin saves against writers that advance
 `updated_at` (normal model saves); direct queryset updates must update that timestamp
 too to participate in conflict detection.
 
+Quick-edit submissions load rows, check revisions and save on the database
+selected by the service write router for the batch. Opening the list still
+follows the read router. If the list shows an older revision from a replica,
+the writer rejects the submission as a conflict.
+
 When a quick edit fails validation, the list keeps the submitted revisions with
 the entered values. Correcting a field error lets you retry the batch, and any
 stale row still requires an explicit reload before you can save.

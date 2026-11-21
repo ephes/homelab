@@ -244,6 +244,48 @@ def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monke
     assert default_rows() == before
 
 
+def test_list_edit_selects_claims_and_saves_writer(admin_client, settings):
+    class SplitRouter(SecondaryServiceRouter):
+        def db_for_read(self, model, **hints):
+            return "default" if model is Service else None
+
+        def db_for_write(self, model, **hints):
+            if model is Service:
+                return "default" if hints.get("instance") is not None else "secondary"
+            return None
+
+    settings.DATABASE_ROUTERS = [SplitRouter()]
+    service = Service.objects.using("secondary").create(name="Writer", order=1)
+    replica = Service.objects.using("default").create(pk=service.pk, name="Stale replica", order=2)
+    before = default_rows()
+    url = reverse("admin:core_service_changelist")
+
+    forms = admin_client.get(url).context["cl"].formset.forms
+    assert [form.instance.name for form in forms] == [replica.name]
+
+    data = {
+        "form-TOTAL_FORMS": "1",
+        "form-INITIAL_FORMS": "1",
+        "form-0-id": str(service.pk),
+        "form-0-order": "10",
+        "form-0-is_active": "on",
+        "form-0-original_revision": service.updated_at.isoformat(),
+        "_save": "Save",
+    }
+    assert admin_client.post(url, data).status_code == 302
+    service.refresh_from_db(using="secondary")
+    assert (service.name, service.order) == ("Writer", 10)
+    assert default_rows() == before
+
+    data.update({"form-0-order": "20", "form-0-original_revision": replica.updated_at.isoformat()})
+    response = admin_client.post(url, data)
+    assert response.status_code == 200
+    assert "changed since" in str(response.context["cl"].formset.forms[0].non_field_errors())
+    service.refresh_from_db(using="secondary")
+    assert service.order == 10
+    assert default_rows() == before
+
+
 def test_single_confirmation_reads_and_claims_writer(admin_client, settings):
     class SplitRouter(SecondaryServiceRouter):
         def db_for_read(self, model, **hints):

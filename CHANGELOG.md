@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep quick-edit row selection, revision checks and saves on the writer
+  database while routing ordinary list views as reads.
 - Skip nonregular packaged service logos before allocating storage and keep the
   tile's icon fallback.
 - Refuse admin login with the usual form error when the throttle refund fails
