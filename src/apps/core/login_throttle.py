@@ -10,7 +10,8 @@ These budgets apply to every username/password attempt, each over a fixed window
 An attempt is charged against every budget before the password is checked, in one
 SQLite write transaction, so concurrent workers cannot exceed a budget. A successful
 login refunds its charge and clears the username/address budget through its own
-reservation, preserving later charges. An attempt that is
+reservation, preserving later charges. If the refund fails with a database
+error, the login is refused and the charges stay in place. An attempt that is
 over a budget is refused without checking the password.
 
 The client address is the last ``X-Forwarded-For`` entry: Traefik, the only proxy in
@@ -29,6 +30,7 @@ authenticates, so tailnet addresses get no network budget and stay usable.
 
 import hashlib
 import ipaddress
+import logging
 import time
 
 from asgiref.sync import sync_to_async
@@ -36,12 +38,14 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
 from django.core.exceptions import PermissionDenied
-from django.db import router, transaction
+from django.db import DatabaseError, router, transaction
 from django.db.models import F
 from django.db.models.functions import Least
 
 from .client_addresses import IPAddress, canonical_ip, client_address, is_tailscale
 from .models import LoginThrottleBucket
+
+logger = logging.getLogger(__name__)
 
 MAX_USERNAME = 150  # longer names are cut for the key; they cannot belong to an account
 NETWORK_PREFIX = {4: 24, 6: 64}
@@ -146,7 +150,11 @@ class LoginThrottleBackend(ModelBackend):
         user = super().authenticate(request, username, password, **kwargs)
         if user is None:
             raise PermissionDenied("Invalid login.")
-        _refund(charge)
+        try:
+            _refund(charge)
+        except DatabaseError as exc:
+            logger.exception("Could not refund login throttle reservation")
+            raise PermissionDenied("Login throttle storage unavailable.") from exc
         return user
 
     async def aauthenticate(self, request, username=None, password=None, **kwargs):

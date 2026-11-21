@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refuse admin login with the usual form error when the throttle refund fails
+  after a correct password. Keep the attempt charged in every budget.
 - Keep bounded cleanup of expired login budgets when a full budget refuses an
   attempt and its charges are rolled back.
 - Capture the default-service total inside the seed transaction so deferred

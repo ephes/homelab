@@ -2,6 +2,8 @@
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import OperationalError
+from django.db.models import QuerySet
 from django.test import Client, override_settings
 from django.urls import reverse
 
@@ -68,6 +70,36 @@ def test_success_resets_the_username_budget_for_that_address(owner):
     fail("192.168.178.50", 2)
 
     assert login("192.168.178.50")
+
+
+@pytest.mark.django_db(transaction=True)
+def test_refund_database_failure_refuses_login_and_preserves_charges(owner, monkeypatch):
+    address = "192.0.2.50"
+    fail(address, 1)
+    update = QuerySet.update
+    refund_updates = []
+
+    def fail_second_refund(queryset, **changes):
+        if queryset.model is LoginThrottleBucket and "failures" in changes and "charge_sequence" not in changes:
+            if refund_updates:
+                raise OperationalError("refund storage interrupted")
+            refund_updates.append(update(queryset, **changes))
+            return refund_updates[0]
+        return update(queryset, **changes)
+
+    monkeypatch.setattr(QuerySet, "update", fail_second_refund)
+    client = Client()
+    response = client.post(
+        reverse("admin:login"),
+        {"username": "owner", "password": PASSWORD, "next": reverse("admin:index")},
+        HTTP_X_FORWARDED_FOR=address,
+    )
+
+    assert refund_updates == [1]
+    assert response.status_code == 200
+    assert response.context["form"].errors.as_data()["__all__"][0].code == "invalid_login"
+    assert "_auth_user_id" not in client.session
+    assert list(LoginThrottleBucket.objects.values_list("failures", "charge_sequence")) == [(2, 2)] * 3
 
 
 def test_address_budget_covers_many_usernames(owner):
