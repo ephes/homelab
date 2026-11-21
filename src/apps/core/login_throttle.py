@@ -88,19 +88,23 @@ def _charge(request, username: str) -> tuple[str, tuple[tuple[int, bool, int], .
         now = time.time()
         expired = buckets.filter(expires_at__lte=now).values("pk")[:EXPIRED_ROWS_PER_ATTEMPT]
         buckets.filter(pk__in=expired).delete()
-        # Coarsest budget first: a refused address cannot create username rows.
-        for key, limit in limits.items():
-            buckets.filter(key=key, expires_at__lte=now).delete()
-            bucket, _ = buckets.get_or_create(
-                key=key, defaults={"expires_at": now + settings.HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS}
-            )
-            if not buckets.filter(pk=bucket.pk, failures__lt=limit).update(
-                failures=F("failures") + 1, charge_sequence=F("charge_sequence") + 1
-            ):
-                # Rolls back the charges made earlier in this transaction.
-                raise PermissionDenied("Too many failed login attempts.")
-            charged.append((bucket.pk, key.startswith("pair:"), bucket.charge_sequence + 1))
-    return alias, tuple(charged)
+        with transaction.atomic(using=alias):
+            # Coarsest budget first: a refused address cannot create username rows.
+            for key, limit in limits.items():
+                buckets.filter(key=key, expires_at__lte=now).delete()
+                bucket, _ = buckets.get_or_create(
+                    key=key, defaults={"expires_at": now + settings.HOMELAB_LOGIN_FAILURE_WINDOW_SECONDS}
+                )
+                if not buckets.filter(pk=bucket.pk, failures__lt=limit).update(
+                    failures=F("failures") + 1, charge_sequence=F("charge_sequence") + 1
+                ):
+                    # Roll back the reservation while keeping the bounded sweep.
+                    transaction.set_rollback(True, using=alias)
+                    break
+                charged.append((bucket.pk, key.startswith("pair:"), bucket.charge_sequence + 1))
+            else:
+                return alias, tuple(charged)
+    raise PermissionDenied("Too many failed login attempts.")
 
 
 def _refund(charge) -> None:

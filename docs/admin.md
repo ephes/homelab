@@ -37,7 +37,9 @@ the admin login for the rest of the window (and again in the next one). Logins
 over Tailscale are not affected; use Tailscale, or wait for the window to end. The limits
 are the `HOMELAB_LOGIN_*` settings in `config/settings/base.py`
 (see [settings](settings.md)); the budgets live in the `LoginThrottleBucket`
-table and expire on their own.
+table and expire on their own. Each login attempt prunes up to 100 expired rows
+in a sweep, including attempts refused by a full budget. A refused attempt
+leaves the active budgets unchanged.
 
 ### First-Time Setup
 

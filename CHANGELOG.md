@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep bounded cleanup of expired login budgets when a full budget refuses an
+  attempt and its charges are rolled back.
 - Capture the default-service total inside the seed transaction so deferred
   output reflects that run and a count failure rolls back the seed.
 - Check pending seed logo references in one query and retain the files if the

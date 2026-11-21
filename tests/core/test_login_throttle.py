@@ -5,6 +5,9 @@ from django.contrib.auth import get_user_model
 from django.test import Client, override_settings
 from django.urls import reverse
 
+from apps.core.login_throttle import EXPIRED_ROWS_PER_ATTEMPT
+from apps.core.models import LoginThrottleBucket
+
 LIMITS = {
     "HOMELAB_LOGIN_FAILURE_LIMIT": 3,
     "HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT": 5,
@@ -73,6 +76,26 @@ def test_address_budget_covers_many_usernames(owner):
 
     assert not login("100.100.1.2")
     assert login("100.100.1.3")
+
+
+def test_refused_attempts_prune_expired_buckets_without_charging_any_budget(owner):
+    address = "192.0.2.50"
+    for index in range(LIMITS["HOMELAB_LOGIN_ADDRESS_FAILURE_LIMIT"]):
+        fail(address, 1, username=f"guess{index}")
+
+    active = LoginThrottleBucket.objects.filter(expires_at__gt=0).order_by("pk")
+    before = list(active.values_list("key", "failures", "charge_sequence"))
+    expired = LoginThrottleBucket.objects.filter(expires_at=0)
+    LoginThrottleBucket.objects.bulk_create(
+        LoginThrottleBucket(key=f"pair:expired:{index}", failures=1, expires_at=0)
+        for index in range(2 * EXPIRED_ROWS_PER_ATTEMPT + 1)
+    )
+
+    # The address refuses after the network charge and before the username charge.
+    for remaining in (EXPIRED_ROWS_PER_ATTEMPT + 1, 1):
+        assert not login(address)
+        assert expired.count() == remaining
+        assert list(active.values_list("key", "failures", "charge_sequence")) == before
 
 
 def test_refused_attempt_does_not_verify_the_password(owner, monkeypatch):
@@ -184,8 +207,6 @@ def test_insert_without_charge_sequence_uses_the_database_default():
     # Code that predates charge_sequence must keep inserting buckets after
     # migration 0020 (old workers during a deploy, or a rollback).
     from django.db import connection
-
-    from apps.core.models import LoginThrottleBucket
 
     table = connection.ops.quote_name(LoginThrottleBucket._meta.db_table)
     with connection.cursor() as cursor:
