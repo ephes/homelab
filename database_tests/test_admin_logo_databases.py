@@ -173,8 +173,7 @@ class InstanceServiceRouter(SecondaryServiceRouter):
         return None
 
 
-@pytest.mark.parametrize("change", [True, False])
-def test_autocommit_row_failure_after_commit_keeps_referenced_upload(admin_client, settings, tmp_path, change):
+def test_autocommit_add_failure_after_commit_keeps_referenced_upload(admin_client, settings, tmp_path):
     # The change-form transaction runs on default, so the secondary row write
     # commits before post_save raises; its new logo must stay readable.
     settings.MEDIA_ROOT = tmp_path
@@ -189,15 +188,15 @@ def test_autocommit_row_failure_after_commit_keeps_referenced_upload(admin_clien
 
     post_save.connect(fail, sender=Service)
     data = change_data(service)
-    data.update(name="Secondary" if change else "New", logo_file=SimpleUploadedFile("new.svg", b"new logo"))
-    url = reverse("admin:core_service_change", args=[service.pk]) if change else reverse("admin:core_service_add")
+    data.update(name="New", logo_file=SimpleUploadedFile("new.svg", b"new logo"))
+    url = reverse("admin:core_service_add")
     try:
         with pytest.raises(RuntimeError, match="after autocommit row write"):
             admin_client.post(url, data)
     finally:
         post_save.disconnect(fail, sender=Service)
     assert reached
-    committed = Service.objects.get(name="Secondary" if change else "New")
+    committed = Service.objects.get(name="New")
     assert committed.logo_file.name != old_name
     with committed.logo_file.open("rb") as source:
         assert source.read() == b"new logo"
@@ -244,17 +243,18 @@ def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monke
     assert default_rows() == before
 
 
+class SplitServiceRouter(SecondaryServiceRouter):
+    def db_for_read(self, model, **hints):
+        return "default" if model is Service else None
+
+    def db_for_write(self, model, **hints):
+        if model is Service:
+            return "default" if hints.get("instance") is not None else "secondary"
+        return None
+
+
 def test_list_edit_selects_claims_and_saves_writer(admin_client, settings):
-    class SplitRouter(SecondaryServiceRouter):
-        def db_for_read(self, model, **hints):
-            return "default" if model is Service else None
-
-        def db_for_write(self, model, **hints):
-            if model is Service:
-                return "default" if hints.get("instance") is not None else "secondary"
-            return None
-
-    settings.DATABASE_ROUTERS = [SplitRouter()]
+    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
     service = Service.objects.using("secondary").create(name="Writer", order=1)
     replica = Service.objects.using("default").create(pk=service.pk, name="Stale replica", order=2)
     before = default_rows()
@@ -284,6 +284,70 @@ def test_list_edit_selects_claims_and_saves_writer(admin_client, settings):
     service.refresh_from_db(using="secondary")
     assert service.order == 10
     assert default_rows() == before
+
+
+@pytest.mark.parametrize("case", ["save", "stale", "duplicate", "rollback"])
+def test_single_edit_loads_validates_and_saves_on_writer(admin_client, settings, tmp_path, case):
+    settings.MEDIA_ROOT = tmp_path
+    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
+    service = Service.objects.using("secondary").create(
+        name="Writer", logo_file=SimpleUploadedFile("old.svg", b"old logo")
+    )
+    replica = Service.objects.using("default").create(pk=service.pk, name="Replica")
+    Service.objects.using("default").create(name="Replica-only name")
+    Service.objects.using("secondary").create(name="Writer-only name")
+    before = default_rows()
+    original_revision = service.updated_at
+    old_logo = service.logo_file.name
+    storage = service.logo_file.storage
+    url = reverse("admin:core_service_change", args=[service.pk])
+    assert admin_client.get(url).context["adminform"].form.instance.name == replica.name
+
+    data = change_data(service)
+    data["name"] = "Writer-only name" if case == "duplicate" else "Replica-only name"
+    data["logo_file"] = SimpleUploadedFile("new.svg", b"new logo")
+    if case == "stale":
+        data["name"] = "Stale edit"
+        data["original_revision"] = replica.updated_at.isoformat()
+
+    def fail(sender, instance, using, **kwargs):
+        assert using == "secondary"
+        assert transaction.get_connection(using).in_atomic_block
+        raise RuntimeError("injected writer row failure")
+
+    if case == "rollback":
+        post_save.connect(fail, sender=Service)
+        try:
+            with pytest.raises(RuntimeError, match="injected writer row failure"):
+                admin_client.post(url, data)
+        finally:
+            post_save.disconnect(fail, sender=Service)
+    else:
+        response = admin_client.post(url, data)
+        if case == "save":
+            assert response.status_code == 302
+        else:
+            assert response.status_code == 200
+            form = response.context["adminform"].form
+            assert form.initial["name"] == "Writer"
+            if case == "stale":
+                assert "changed since" in str(form.non_field_errors())
+            else:
+                assert form.errors.as_data()["name"][0].code == "unique"
+
+    service.refresh_from_db(using="secondary")
+    assert default_rows() == before
+    if case == "save":
+        assert service.name == "Replica-only name"
+        assert service.updated_at > original_revision
+        with service.logo_file.open("rb") as source:
+            assert source.read() == b"new logo"
+        assert not storage.exists(old_logo)
+    else:
+        assert service.name == "Writer"
+        assert service.updated_at == original_revision
+        assert service.logo_file.name == old_logo
+        assert [path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()] == [old_logo]
 
 
 def test_single_confirmation_reads_and_claims_writer(admin_client, settings):

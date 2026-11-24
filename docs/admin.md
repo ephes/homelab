@@ -125,10 +125,12 @@ held through the save. This protects admin saves against writers that advance
 `updated_at` (normal model saves); direct queryset updates must update that timestamp
 too to participate in conflict detection.
 
-Quick-edit submissions load rows, check revisions and save on the database
-selected by the service write router for the batch. Opening the list still
-follows the read router. If the list shows an older revision from a replica,
-the writer rejects the submission as a conflict.
+Single-service and quick-edit submissions load rows, check revisions and save
+on the database selected by the service write router. Single-service edits
+also validate name uniqueness and handle logo retirement and failed uploads on
+that alias. Opening the change page or list follows the read router. If the
+page shows an older revision from a replica, the writer rejects the submission
+as a conflict.
 
 When a quick edit fails validation, the list keeps the submitted revisions with
 the entered values. Correcting a field error lets you retry the batch, and any
@@ -203,9 +205,10 @@ the Service write database, including the writer-bound bulk queryset, so rows on
 another alias do not determine ownership. The two-alias regression
 also covers a failure after the service row commits: cleanup checks the recorded
 upload write alias and keeps the file while the committed row references it.
-When the row's write alias is in autocommit (the change form's transaction runs
-on another alias), a `post_save` failure leaves the row committed; cleanup then
-checks that alias too and keeps the referenced file. The
+When adding a service, an instance route can write the row in autocommit
+while the form transaction runs on another alias. If a `post_save` failure
+occurs after that write, cleanup checks the row's alias and keeps the referenced
+file. The
 command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or

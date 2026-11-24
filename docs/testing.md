@@ -524,7 +524,11 @@ the staged file.
 The post-commit regression also routes instance writes to `secondary` while
 unhinted writes route to `default`, and verifies the committed logo is readable.
 With the same routing, a `post_save` failure after the autocommit row write must
-keep the new logo the committed row references, for add and replacement.
+keep the new logo referenced by the committed row when adding a service.
+Single-service edit submissions use the model-level writer transaction.
+The split-router regression checks reader display, writer lookup,
+revision and name validation, and writer-only saves. An injected failure after
+the writer saves the row must roll it back and remove the staged logo.
 Default rows must remain unchanged. These checks preserve logo ownership on the
 writer alias. To check sensitivity, temporarily
 route retirement reference checks, on-commit registration or failed-upload

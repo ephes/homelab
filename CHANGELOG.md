@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use the writer database for single-service edit submissions, including row
+  lookup, validation, saving and logo cleanup.
 - Show the usual admin login error when the throttle budget cannot be reserved.
   Refuse the attempt before checking the password.
 - Verify the size and generation of packaged logos before attaching them and

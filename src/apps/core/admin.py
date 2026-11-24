@@ -71,6 +71,19 @@ class ServiceAdminForm(forms.ModelForm):
                 )
         return cleaned
 
+    def validate_unique(self):
+        if self.write_database is None:
+            return super().validate_unique()
+        # Service.name is the only unique field. Django's model validation
+        # uses the read router for field uniqueness, even on a loaded instance.
+        if "name" in self.cleaned_data:
+            duplicates = Service.objects.using(self.write_database).filter(name=self.instance.name)
+            if not self.instance._state.adding:
+                duplicates = duplicates.exclude(pk=self.instance.pk)
+            if duplicates.exists():
+                error = self.instance.unique_error_message(Service, ["name"])
+                self.add_error("name", error)
+
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
@@ -90,6 +103,8 @@ class ServiceAdmin(admin.ModelAdmin):
         queryset = super().get_queryset(request)
         if hasattr(request, "_service_delete_using"):
             return queryset.using(request._service_delete_using)
+        if hasattr(request, "_service_change_using"):
+            return queryset.using(request._service_change_using)
         if hasattr(request, "_service_list_edit_using"):
             return queryset.using(request._service_list_edit_using)
         return queryset
@@ -243,9 +258,17 @@ class ServiceAdmin(admin.ModelAdmin):
             except Exception:
                 logger.exception("Could not clean up failed service upload %s", name)
 
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        form = super().get_form(request, obj, change=change, **kwargs)
+        form.write_database = getattr(request, "_service_change_using", None)
+        return form
+
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # ModelAdmin owns the atomic block inside this public entry point.
         # Catch outside it so even failures after save_model have rolled back.
+        if request.method == "POST" and object_id is not None and "_saveasnew" not in request.POST:
+            # Match Django's model-level route for the change-form transaction.
+            request._service_change_using = router.db_for_write(self.model)
         request._service_logo_uploads = []
         try:
             return super().changeform_view(request, object_id, form_url, extra_context)
@@ -255,10 +278,14 @@ class ServiceAdmin(admin.ModelAdmin):
             raise
         finally:
             del request._service_logo_uploads
+            if hasattr(request, "_service_change_using"):
+                del request._service_change_using
 
     def save_model(self, request, obj, form, change):
-        list_edit_using = getattr(request, "_service_list_edit_using", None)
-        using = list_edit_using or router.db_for_write(self.model, instance=obj)
+        pinned_using = getattr(request, "_service_change_using", None) or getattr(
+            request, "_service_list_edit_using", None
+        )
+        using = pinned_using or router.db_for_write(self.model, instance=obj)
         old_name = ""
         if change:
             old_name = self.model.objects.using(using).get(pk=obj.pk).logo_file.name
@@ -282,15 +309,15 @@ class ServiceAdmin(admin.ModelAdmin):
                             raise forms.ValidationError(LOGO_SIZE_ERROR)
                         write_logo_chunk(destination, chunk)
                 obj.logo_file = name
-            if list_edit_using is None:
+            if pinned_using is None:
                 super().save_model(request, obj, form, change)
             else:
                 obj.save(using=using)
         except BaseException:
             # Inside a transaction on the write alias the row change rolls back
-            # with this error. In autocommit (the change form's transaction runs
-            # on another alias), Model.save may have committed the row before a
-            # post_save receiver raised: keep a file the committed row references.
+            # with this error. On an instance-routed add, the admin transaction
+            # may run on another alias. Model.save can commit the row before a
+            # post_save receiver raises: keep a file the committed row references.
             in_transaction = transaction.get_connection(using).in_atomic_block
             self._remove_failed_uploads(allocated, using=None if in_transaction else using)
             raise
