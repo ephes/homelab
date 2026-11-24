@@ -164,50 +164,82 @@ def test_secondary_failed_upload_removes_only_owned_allocation(
         assert source.read() == b"old logo"
 
 
-class InstanceServiceRouter(SecondaryServiceRouter):
-    """Route instance writes to secondary and unhinted writes to default."""
+class SplitServiceRouter(SecondaryServiceRouter):
+    def db_for_read(self, model, **hints):
+        return "default" if model is Service else None
 
     def db_for_write(self, model, **hints):
         if model is Service:
-            return "secondary" if hints.get("instance") is not None else "default"
+            return "default" if hints.get("instance") is not None else "secondary"
         return None
 
 
-def test_autocommit_add_failure_after_commit_keeps_referenced_upload(admin_client, settings, tmp_path):
-    # The change-form transaction runs on default, so the secondary row write
-    # commits before post_save raises; its new logo must stay readable.
+@pytest.mark.parametrize("save_as_new", [False, True], ids=["add", "save-as-new"])
+@pytest.mark.parametrize("case", ["writer-duplicate", "reader-duplicate", "rollback"])
+def test_new_service_validates_and_saves_on_writer(admin_client, settings, tmp_path, case, save_as_new):
     settings.MEDIA_ROOT = tmp_path
-    service = Service.objects.create(name="Secondary", logo_file=SimpleUploadedFile("old.svg", b"old logo"))
-    old_name = service.logo_file.name
-    settings.DATABASE_ROUTERS = [InstanceServiceRouter()]
-    reached = []
+    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
+    original = Service.objects.using("secondary").create(
+        name="Original", logo_file=SimpleUploadedFile("original.svg", b"old logo")
+    )
+    old_logo = original.logo_file.name
+    replica = Service.objects.using("default").create(pk=original.pk, name="Replica original")
+    Service.objects.using("secondary").create(name="Writer-only name")
+    Service.objects.using("default").create(name="Reader-only name")
+    before = default_rows()
+    data = change_data(replica)
+    data["name"] = {
+        "writer-duplicate": "Writer-only name",
+        "reader-duplicate": "Reader-only name",
+        "rollback": "New name",
+    }[case]
+    data["logo_file"] = SimpleUploadedFile("new.svg", b"new logo")
+    if save_as_new:
+        url = reverse("admin:core_service_change", args=[original.pk])
+        data["_saveasnew"] = data.pop("_save")
+    else:
+        url = reverse("admin:core_service_add")
 
-    def fail(*args, **kwargs):
-        reached.append(True)
-        raise RuntimeError("after autocommit row write")
+    writer = Service.objects.using("secondary")
 
-    post_save.connect(fail, sender=Service)
-    data = change_data(service)
-    data.update(name="New", logo_file=SimpleUploadedFile("new.svg", b"new logo"))
-    url = reverse("admin:core_service_add")
-    try:
-        with pytest.raises(RuntimeError, match="after autocommit row write"):
-            admin_client.post(url, data)
-    finally:
-        post_save.disconnect(fail, sender=Service)
-    assert reached
-    committed = Service.objects.get(name="New")
-    assert committed.logo_file.name != old_name
-    with committed.logo_file.open("rb") as source:
-        assert source.read() == b"new logo"
-    with service.logo_file.storage.open(old_name, "rb") as source:
+    def fail(sender, instance, using, **kwargs):
+        assert using == "secondary"
+        assert transaction.get_connection(using).in_atomic_block
+        raise RuntimeError("injected writer insert failure")
+
+    if case == "rollback":
+        post_save.connect(fail, sender=Service)
+        try:
+            with pytest.raises(RuntimeError, match="injected writer insert failure"):
+                admin_client.post(url, data)
+        finally:
+            post_save.disconnect(fail, sender=Service)
+        assert not writer.filter(name=data["name"]).exists()
+    else:
+        response = admin_client.post(url, data)
+        if case == "writer-duplicate":
+            assert response.status_code == 200
+            assert response.context["adminform"].form.errors.as_data()["name"][0].code == "unique"
+        else:
+            assert response.status_code == 302
+            created = writer.get(name=data["name"])
+            assert created.pk != original.pk
+            with created.logo_file.open("rb") as source:
+                assert source.read() == b"new logo"
+
+    assert default_rows() == before
+    assert writer.get(pk=original.pk).updated_at == original.updated_at
+    with original.logo_file.open("rb") as source:
         assert source.read() == b"old logo"
+    assert writer.count() == (3 if case == "reader-duplicate" else 2)
+    if case != "reader-duplicate":
+        assert [path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()] == [old_logo]
 
 
 @pytest.mark.parametrize("instance_routing", [False, True])
 def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monkeypatch, settings, instance_routing):
     if instance_routing:
-        settings.DATABASE_ROUTERS = [InstanceServiceRouter()]
+        settings.DATABASE_ROUTERS = [SplitServiceRouter()]
 
     # No default row references this upload: compensation must query secondary.
     Service.objects.using("default").create(name="Default sentinel", logo_file="unrelated.svg")
@@ -237,20 +269,10 @@ def test_secondary_post_commit_error_keeps_referenced_upload(admin_client, monke
             },
         )
     assert reached
-    service = Service.objects.get(name="Committed secondary")
+    service = Service.objects.using("secondary").get(name="Committed secondary")
     with service.logo_file.open("rb") as source:
         assert source.read() == b"new logo"
     assert default_rows() == before
-
-
-class SplitServiceRouter(SecondaryServiceRouter):
-    def db_for_read(self, model, **hints):
-        return "default" if model is Service else None
-
-    def db_for_write(self, model, **hints):
-        if model is Service:
-            return "default" if hints.get("instance") is not None else "secondary"
-        return None
 
 
 def test_list_edit_selects_claims_and_saves_writer(admin_client, settings):

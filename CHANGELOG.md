@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Validate service names, save new rows and handle logo uploads on the writer
+  database for admin add and save-as-new submissions.
+
 - Use the writer database for single-service edit submissions, including row
   lookup, validation, saving and logo cleanup.
 - Show the usual admin login error when the throttle budget cannot be reserved.
@@ -31,9 +34,8 @@
   remove the partial file.
 - Reject admin logo uploads when storage reports a short write, preserving the
   old logo and removing the partial file.
-- Keep committed admin logo uploads when change-form cleanup encounters different
-  instance and model database routes, including a `post_save` failure after an
-  autocommit row write.
+- Keep committed admin logo uploads when a callback fails after the writer
+  transaction commits.
 - Check shared logo references in one post-commit query after bulk admin deletion.
 
 - Cover quick-edit retries after validation errors to ensure stale revisions

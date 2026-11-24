@@ -128,7 +128,9 @@ too to participate in conflict detection.
 Single-service and quick-edit submissions load rows, check revisions and save
 on the database selected by the service write router. Single-service edits
 also validate name uniqueness and handle logo retirement and failed uploads on
-that alias. Opening the change page or list follows the read router. If the
+that alias. Adding a service or submitting a save-as-new request uses the same
+write database for name uniqueness, the new row and failed-upload cleanup.
+Opening the change page or list follows the read router. If the
 page shows an older revision from a replica, the writer rejects the submission
 as a conflict.
 
@@ -205,11 +207,7 @@ the Service write database, including the writer-bound bulk queryset, so rows on
 another alias do not determine ownership. The two-alias regression
 also covers a failure after the service row commits: cleanup checks the recorded
 upload write alias and keeps the file while the committed row references it.
-When adding a service, an instance route can write the row in autocommit
-while the form transaction runs on another alias. If a `post_save` failure
-occurs after that write, cleanup checks the row's alias and keeps the referenced
-file. The
-command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
+The command is documented in [Testing](testing.md#media-descriptor-and-routed-admin-logo-regressions).
 
 This applies to future admin actions only, not direct model/queryset changes or
 historical orphan files. It cannot compensate a rollback in a caller-owned outer

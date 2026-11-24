@@ -521,10 +521,10 @@ rollback, retained references, partial/failed uploads and post-commit compensati
 For both add and replacement, a storage stream writes a prefix and returns that
 short count. The request must fail, preserve the old row and logo, and remove
 the staged file.
-The post-commit regression also routes instance writes to `secondary` while
-unhinted writes route to `default`, and verifies the committed logo is readable.
-With the same routing, a `post_save` failure after the autocommit row write must
-keep the new logo referenced by the committed row when adding a service.
+The post-commit regression also uses a conflicting instance write route and
+verifies the committed writer logo is readable. The add and save-as-new
+regressions reject writer-only duplicates, accept reader-only duplicates and
+verify rollback and owned-upload cleanup after a writer insert fails.
 Single-service edit submissions use the model-level writer transaction.
 The split-router regression checks reader display, writer lookup,
 revision and name validation, and writer-only saves. An injected failure after

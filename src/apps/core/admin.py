@@ -267,8 +267,8 @@ class ServiceAdmin(admin.ModelAdmin):
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         # ModelAdmin owns the atomic block inside this public entry point.
         # Catch outside it so even failures after save_model have rolled back.
-        if request.method == "POST" and object_id is not None and "_saveasnew" not in request.POST:
-            # Match Django's model-level route for the change-form transaction.
+        if request.method == "POST":
+            # Match Django's model-level transaction route for adds and edits.
             request._service_change_using = router.db_for_write(self.model)
         request._service_logo_uploads = []
         try:
@@ -316,9 +316,9 @@ class ServiceAdmin(admin.ModelAdmin):
                 obj.save(using=using)
         except BaseException:
             # Inside a transaction on the write alias the row change rolls back
-            # with this error. On an instance-routed add, the admin transaction
-            # may run on another alias. Model.save can commit the row before a
-            # post_save receiver raises: keep a file the committed row references.
+            # with this error. Without a transaction on that alias,
+            # Model.save can commit before a post_save receiver raises. Keep
+            # any file the committed row references.
             in_transaction = transaction.get_connection(using).in_atomic_block
             self._remove_failed_uploads(allocated, using=None if in_transaction else using)
             raise
