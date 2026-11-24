@@ -328,9 +328,9 @@ class ServiceAdmin(admin.ModelAdmin):
             self._retire_logos([old_name], using)
 
     def delete_model(self, request, obj):
-        using = router.db_for_write(self.model, instance=obj)
+        using = getattr(request, "_service_delete_using", None) or router.db_for_write(self.model, instance=obj)
         name = obj.logo_file.name
-        super().delete_model(request, obj)
+        obj.delete(using=using)
         self._retire_logos([name], using)
 
     def delete_queryset(self, request, queryset):

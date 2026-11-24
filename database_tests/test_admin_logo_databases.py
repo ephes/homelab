@@ -372,24 +372,34 @@ def test_single_edit_loads_validates_and_saves_on_writer(admin_client, settings,
         assert [path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()] == [old_logo]
 
 
-def test_single_confirmation_reads_and_claims_writer(admin_client, settings):
-    class SplitRouter(SecondaryServiceRouter):
-        def db_for_read(self, model, **hints):
-            return "default" if model is Service else None
-
-    settings.DATABASE_ROUTERS = [SplitRouter()]
-    service = Service.objects.using("secondary").create(name="Writer")
-    Service.objects.using("default").create(pk=service.pk, name="Reader sentinel")
+def test_single_confirmation_claims_deletes_and_retires_on_writer(admin_client, settings):
+    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
+    writer = Service.objects.using("secondary")
+    service = writer.create(name="Writer", logo_file=SimpleUploadedFile("writer.svg", b"writer logo"))
+    replica = Service.objects.using("default").create(
+        pk=service.pk, name="Reader sentinel", logo_file=SimpleUploadedFile("reader.svg", b"reader logo")
+    )
+    storage = service.logo_file.storage
     before = default_rows()
+
     url, token = single_confirmation(admin_client, service)
     service.name = "New writer generation"
     service.save(using="secondary")
     admin_client.post(url, {"post": "yes", "service_delete_confirmation": token})
-    assert Service.objects.using("secondary").filter(pk=service.pk).exists()
-    url, token = single_confirmation(admin_client, service)
-    assert admin_client.post(url, {"post": "yes", "service_delete_confirmation": token}).status_code == 302
-    assert not Service.objects.using("secondary").filter(pk=service.pk).exists()
+    assert writer.filter(pk=service.pk).exists()
     assert default_rows() == before
+    assert storage.exists(service.logo_file.name)
+
+    url, token = single_confirmation(admin_client, service)
+    with transaction.atomic(using="secondary"):
+        assert admin_client.post(url, {"post": "yes", "service_delete_confirmation": token}).status_code == 302
+        assert not writer.filter(pk=service.pk).exists()
+        assert default_rows() == before
+        assert storage.exists(service.logo_file.name)
+
+    assert not storage.exists(service.logo_file.name)
+    with replica.logo_file.open("rb") as source:
+        assert source.read() == b"reader logo"
 
 
 @pytest.mark.parametrize("change", ["edit", "disappear", "database"])

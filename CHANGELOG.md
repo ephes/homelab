@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Delete individually confirmed services and retire their logos on the database
+  bound to the admin confirmation.
+
 - Validate service names, save new rows and handle logo uploads on the writer
   database for admin add and save-as-new submissions.
 

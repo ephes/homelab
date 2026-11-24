@@ -540,8 +540,9 @@ user binding and expiry. Bulk requests also cover all-or-nothing refusal when a
 row changes/disappears or IDs are omitted/added/duplicated, signed journey binding,
 the 500-service limit and a fixed select-all snapshot. Refusals preserve rows,
 files and audit entries; a new confirmation succeeds. The two-database logo lane
-confirms writer rows when the read router points at conflicting default-database
-sentinels and refuses confirmation reuse on another alias. The contention lane
+refuses confirmation reuse on another alias. With conflicting read and instance
+write routes, a confirmed single delete removes the writer row only and retires
+its logo after the writer commits. The contention lane
 also overlaps an admin edit with each deletion journey: the deletion waits for
 the edit to commit, then refuses its stale confirmation without retiring the new
 logo or writing a deletion audit entry.

@@ -163,8 +163,10 @@ at most 128 KiB of confirmation data. Missing, altered or stale confirmations
 return to the service list with a reload message before any audit entry, deletion
 or logo cleanup. Reload and open Delete again to inspect and confirm the current
 service. Pages opened before this protection was deployed must also be reloaded.
-The revision is claimed on the writer database under the deletion transaction;
-normal saves must advance `updated_at`, as described for editing above.
+The deletion transaction claims the revision and deletes the service on the
+database bound to the confirmation. Logo retirement waits for that database to
+commit and checks for references there. Normal saves must advance `updated_at`,
+as described for editing above.
 
 **Bulk deletion**:
 1. Check boxes next to services
@@ -203,7 +205,7 @@ is removed after rollback. Names are reserved through storage before bytes are
 copied. A reported short write aborts the upload before the file is attached to
 the service. Cleanup removes only this save's allocation and preserves old and
 shared logos. Reference checks and commit callbacks use
-the Service write database, including the writer-bound bulk queryset, so rows on
+the Service write database bound to the save or delete, so rows on
 another alias do not determine ownership. The two-alias regression
 also covers a failure after the service row commits: cleanup checks the recorded
 upload write alias and keeps the file while the committed row references it.
