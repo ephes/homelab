@@ -27,7 +27,9 @@ Once a budget is used up, every login it covers is refused with the usual
 password, until the 15-minute window ends: from that address for that username,
 from that address for all usernames, or from every address in that network.
 The client address is the one Traefik appended to `X-Forwarded-For`. A
-successful login clears the username budget for its address. If a database
+successful login clears the username budget for its address. A database error
+during reservation shows the usual login error before any password check. The
+application logs a fixed diagnostic when logging is available. If a database
 error prevents the refund after a correct password, the attempt stays charged
 and the admin shows the usual login error even if logging fails. When logging
 is available, the application records the original database error.

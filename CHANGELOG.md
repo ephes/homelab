@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show the usual admin login error when the throttle budget cannot be reserved.
+  Refuse the attempt before checking the password.
 - Verify the size and generation of packaged logos before attaching them and
   roll back seeding if a source changes during copying.
 - Keep media streaming and ETag revalidation working when the modification

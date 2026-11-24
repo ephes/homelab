@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
 from django.db import OperationalError
 from django.db.models import QuerySet
 from django.test import Client, override_settings
@@ -73,6 +74,35 @@ def test_success_resets_the_username_budget_for_that_address(owner):
     fail("192.168.178.50", 2)
 
     assert login("192.168.178.50")
+
+
+@pytest.mark.parametrize("logging_fails", [False, True], ids=["logging-works", "logging-fails"])
+def test_reservation_database_failure_refuses_login_before_password_check(owner, monkeypatch, caplog, logging_fails):
+    reserve = Mock(side_effect=OperationalError("reservation storage interrupted"))
+    authenticate = Mock(return_value=owner)
+    monkeypatch.setattr(login_throttle, "_charge", reserve)
+    monkeypatch.setattr(ModelBackend, "authenticate", authenticate)
+    if logging_fails:
+        diagnostic = Mock(side_effect=OSError("log sink unavailable"))
+        monkeypatch.setattr(login_throttle.logger, "error", diagnostic)
+
+    client = Client()
+    response = client.post(
+        reverse("admin:login"),
+        {"username": "owner", "password": PASSWORD, "next": reverse("admin:index")},
+        HTTP_X_FORWARDED_FOR="192.0.2.50",
+    )
+
+    reserve.assert_called_once()
+    authenticate.assert_not_called()
+    assert response.status_code == 200
+    assert response.context["form"].errors.as_data()["__all__"][0].code == "invalid_login"
+    assert "_auth_user_id" not in client.session
+    if logging_fails:
+        diagnostic.assert_called_once()
+    else:
+        assert "Could not reserve login throttle budget" in caplog.messages
+        assert "reservation storage interrupted" not in caplog.text
 
 
 @pytest.mark.django_db(transaction=True)

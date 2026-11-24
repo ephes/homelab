@@ -11,8 +11,8 @@ An attempt is charged against every budget before the password is checked, in on
 SQLite write transaction, so concurrent workers cannot exceed a budget. A successful
 login refunds its charge and clears the username/address budget through its own
 reservation, preserving later charges. If the refund fails with a database
-error, the login is refused and the charges stay in place. An attempt that is
-over a budget is refused without checking the password.
+error, the login is refused and the charges stay in place. A failed reservation
+or an exhausted budget refuses the login before checking the password.
 
 The client address is the last ``X-Forwarded-For`` entry: Traefik, the only proxy in
 front of the app, appends the address it received the connection from; entries to its
@@ -147,7 +147,12 @@ class LoginThrottleBackend(ModelBackend):
             or settings.HOMELAB_LOGIN_FAILURE_LIMIT <= 0
         ):
             return super().authenticate(request, username, password, **kwargs)
-        charge = _charge(request, username)
+        try:
+            charge = _charge(request, username)
+        except DatabaseError as exc:
+            with suppress(Exception):
+                logger.error("Could not reserve login throttle budget")
+            raise PermissionDenied("Login throttle storage unavailable.") from exc
         user = super().authenticate(request, username, password, **kwargs)
         if user is None:
             raise PermissionDenied("Invalid login.")
