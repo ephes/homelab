@@ -5,6 +5,7 @@ Tests for core app models.
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
+from django.db.models import UniqueConstraint
 
 from apps.core.models import Service
 
@@ -88,3 +89,13 @@ class TestServiceModel:
         # Clean up
         service.logo_file.delete()
         service.delete()
+
+
+def test_service_name_is_the_only_unique_check():
+    # ServiceAdminForm.validate_unique checks only name on the pinned writer.
+    # A new unique field or constraint must extend that override.
+    unique_checks, date_checks = Service()._get_unique_checks(include_meta_constraints=True)
+    assert [fields for model, fields in unique_checks if fields != ("id",)] == [("name",)]
+    assert date_checks == []
+    # Conditional and expression UniqueConstraints are not in the unique checks.
+    assert not [c for c in Service._meta.constraints if isinstance(c, UniqueConstraint)]

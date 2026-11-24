@@ -74,8 +74,9 @@ class ServiceAdminForm(forms.ModelForm):
     def validate_unique(self):
         if self.write_database is None:
             return super().validate_unique()
-        # Service.name is the only unique field. Django's model validation
-        # uses the read router for field uniqueness, even on a loaded instance.
+        # Service.name is the only unique field (guarded by a model test).
+        # Django's model validation uses the read router for field uniqueness,
+        # even on a loaded instance.
         if "name" in self.cleaned_data:
             duplicates = Service.objects.using(self.write_database).filter(name=self.instance.name)
             if not self.instance._state.adding:
