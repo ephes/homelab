@@ -48,9 +48,10 @@ def test_inventory_refuses_to_report_when_reference_lookup_fails(db, logo_direct
     output = StringIO()
 
     def fail_second_lookup(execute, sql, params, many, context):
-        lookups.append(params)
-        if len(lookups) == 2:
-            raise DatabaseError("reference lookup failed")
+        if sql.startswith("SELECT DISTINCT"):
+            lookups.append(params)
+            if len(lookups) == 2:
+                raise DatabaseError("reference lookup failed")
         return execute(sql, params, many, context)
 
     with connection.execute_wrapper(fail_second_lookup), pytest.raises(CommandError, match="reference lookup failed"):

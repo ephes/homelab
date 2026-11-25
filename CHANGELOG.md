@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Use a single write-database snapshot for all batched service logo inventory
+  lookups.
+
 - Add a bounded, read-only `inventory_service_logos` command for finding files
   without a Service reference on the write database, including allocations
   left by an interrupted worker.

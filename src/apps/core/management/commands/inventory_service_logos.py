@@ -7,7 +7,7 @@ from time import time
 
 from django.core.files.storage import FileSystemStorage
 from django.core.management.base import BaseCommand, CommandError
-from django.db import DatabaseError, router
+from django.db import DatabaseError, router, transaction
 
 from apps.core.models import Service
 
@@ -55,12 +55,17 @@ class Command(BaseCommand):
         try:
             prefix = field.upload_to.rstrip("/")
             files = _file_mtimes(Path(storage.path(prefix)), prefix)
-            services = Service.objects.using(using)
             referenced = set()
-            for names in batched(files, REFERENCE_BATCH_SIZE):
-                referenced.update(
-                    services.filter(logo_file__in=names).order_by().values_list("logo_file", flat=True).distinct()
-                )
+            if files:
+                services = Service.objects.using(using)
+                with transaction.atomic(using=using):
+                    for names in batched(files, REFERENCE_BATCH_SIZE):
+                        referenced.update(
+                            services.filter(logo_file__in=names)
+                            .order_by()
+                            .values_list("logo_file", flat=True)
+                            .distinct()
+                        )
         except (OSError, DatabaseError) as exc:
             raise CommandError(f"Service logo inventory incomplete: {exc}") from exc
 
