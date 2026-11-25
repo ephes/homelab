@@ -197,8 +197,11 @@ retires the old uploaded file after the database transaction commits. The file
 is kept if any Service still references its storage name at cleanup time.
 Cleanup checks all distinct, nonempty logo names in a confirmed selection in one
 database query. If that query fails, cleanup falls back to checking each logo
-individually. Migration `0021_service_logo_file_index` adds a non-unique index
-for both lookups. Multiple services can share the same exact storage name.
+individually. A failed reference check leaves that file in storage. The admin
+attempts to log failed checks and deletions and continues with the other files
+even if logging raises.
+Migration `0021_service_logo_file_index` adds a non-unique index for both lookups.
+Multiple services can share the same exact storage name.
 Rolled-back admin changes preserve the old file; replacement uploads remain
 available after successful saves. If the admin change-form transaction fails while
 writing an upload, saving its row, or saving related/admin records, the new upload

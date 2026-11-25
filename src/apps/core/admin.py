@@ -240,15 +240,17 @@ class ServiceAdmin(admin.ModelAdmin):
                 )
             except Exception:
                 # A failed batch must still check ownership for each file.
-                logger.exception("Could not check references for retired service logos in bulk")
                 referenced = None
+                with suppress(Exception):
+                    logger.exception("Could not check references for retired service logos in bulk")
             for name in names:
                 try:
                     still_used = logos.filter(logo_file=name).exists() if referenced is None else name in referenced
                     if not still_used:
                         storage.delete(name)
                 except Exception:
-                    logger.exception("Could not clean up retired service logo %s", name)
+                    with suppress(Exception):
+                        logger.exception("Could not clean up retired service logo %s", name)
 
         transaction.on_commit(cleanup, using=using, robust=True)
 

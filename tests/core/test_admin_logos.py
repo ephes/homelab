@@ -1,11 +1,12 @@
 """Logo retirement through real admin requests and database commits."""
 
+import logging
 from contextlib import contextmanager, nullcontext
 from types import SimpleNamespace
 
 import pytest
 from django.core.files.uploadedfile import InMemoryUploadedFile, SimpleUploadedFile
-from django.db import connection, transaction
+from django.db import OperationalError, connection, transaction
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
@@ -136,6 +137,50 @@ def test_bulk_cleanup_failure_is_logged_and_other_files_are_removed(admin_client
     assert all(not storage.exists(name) for name in names - {broken})
     assert broken in caplog.text
     assert "Storage unavailable" in caplog.text
+
+
+@pytest.mark.parametrize("bulk_lookup_fails", [False, True])
+def test_bulk_cleanup_continues_when_diagnostics_raise(admin_client, monkeypatch, bulk_lookup_fails):
+    services = [
+        Service.objects.create(name=name, logo_file=SimpleUploadedFile(f"{name}.svg", b"logo"))
+        for name in ["First", "Second", "Shared"]
+    ]
+    storage = services[0].logo_file.storage
+    shared_name = services[-1].logo_file.name
+    independent_names = {service.logo_file.name for service in services[:-1]}
+    url, data = bulk_confirmation(admin_client, services)
+    attempted = []
+    diagnostics = []
+    delete = storage.delete
+
+    def fail_bulk_lookup(execute, sql, params, many, context):
+        if bulk_lookup_fails and sql.startswith("SELECT DISTINCT") and set(params) == independent_names | {shared_name}:
+            raise OperationalError("synthetic bulk reference lookup failure")
+        return execute(sql, params, many, context)
+
+    def fail_first_delete(name):
+        attempted.append(name)
+        if len(attempted) == 1:
+            raise OSError("synthetic storage delete failure")
+        delete(name)
+
+    class FailingHandler(logging.Handler):
+        def emit(self, record):
+            diagnostics.append(record.exc_info[0])
+            raise RuntimeError("synthetic diagnostic sink failure")
+
+    monkeypatch.setattr(storage, "delete", fail_first_delete)
+    with connection.execute_wrapper(fail_bulk_lookup), transaction.atomic():
+        assert admin_client.post(url, data).status_code == 302
+        survivor = Service.objects.create(name="Reference before commit", logo_file=shared_name)
+        monkeypatch.setattr(logger, "handlers", [FailingHandler()])
+
+    assert list(Service.objects.values_list("pk", flat=True)) == [survivor.pk]
+    assert storage.exists(shared_name)
+    assert set(attempted) == independent_names
+    assert storage.exists(attempted[0])
+    assert not storage.exists(attempted[1])
+    assert diagnostics == ([OperationalError, OSError] if bulk_lookup_fails else [OSError])
 
 
 @pytest.mark.parametrize("failure", ["row", "related", "write"])

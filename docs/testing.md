@@ -488,7 +488,9 @@ logo; the copy guard must never write the chunk that exceeds the budget and must
 remove its partial allocation.
 The bulk deletion test counts one reference query after commit for distinct
 retired logo names and checks that a reference added before commit protects its
-shared file.
+shared file. A throwing log handler must leave the per-file fallback available
+after a failed bulk lookup and let later unreferenced files be removed after a
+failed deletion. Referenced files survive both lookup paths.
 
 `uv run pytest tests/core/test_admin_conflicts.py` submits two valid quick edits,
 saves the first row, then triggers a real unique-constraint database failure on

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Continue retiring unreferenced admin logos when logging a failed reference
+  lookup or file deletion raises.
+
 - Reject incomplete admin logo uploads before allocating storage and preserve
   the previous logo.
 
