@@ -260,7 +260,7 @@ class ServiceAdmin(admin.ModelAdmin):
             except Exception:
                 # Keep the save error and check the remaining allocations.
                 with suppress(Exception):
-                    logger.exception("Could not clean up failed service upload")
+                    logger.exception("Could not clean up failed service upload %s", name)
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj, change=change, **kwargs)
