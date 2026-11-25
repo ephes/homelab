@@ -221,6 +221,29 @@ the original exception. A retry preserves the committed services and logos.
 This command change takes effect when the updated
 command is next run; no automatic rerun is required.
 
+### Inventory logos after an interrupted write
+
+A worker that stops between reserving a logo file and committing its Service
+row can leave an empty or partially written file. Run this report with
+Homelab's normal settings:
+
+```bash
+just manage inventory_service_logos
+```
+
+The command scans regular files under `services/logos/` in the Service logo
+field's filesystem storage, including subdirectories. It ignores symlinks
+and other nonregular entries. For each file absent from the Service write
+database's logo references, it prints the storage key and its age in seconds
+based on the last modification time. Inactive services also protect their
+referenced logos.
+
+The inventory changes neither files nor rows. Pause logo uploads and seed runs
+for a stable report, since an upload in progress may appear unreferenced until
+its transaction commits. The scan examines at most 10,000 directory entries
+and exits with an error and no report if it exceeds the limit or if storage
+scanning or a database reference check fails.
+
 ## Icon Selection Guide
 
 ### Icon Categories

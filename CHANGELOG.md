@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a bounded, read-only `inventory_service_logos` command for finding files
+  without a Service reference on the write database, including allocations
+  left by an interrupted worker.
+
 - Preserve HTTP 304 responses and their validators when closing the unused
   media reader raises an OS error.
 

@@ -1,15 +1,20 @@
 """Admin logo ownership follows the routed write database, never default rows."""
 
+import os
 from contextlib import contextmanager
+from io import StringIO
 from types import SimpleNamespace
 
 import pytest
 from django.contrib import admin
+from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.urls import reverse
 
+from apps.core.management.commands import inventory_service_logos
 from apps.core.models import Service
 from tests.core.test_admin_deletion import bulk_confirmation, single_confirmation
 
@@ -41,6 +46,32 @@ def change_data(service):
 
 def default_rows():
     return list(Service.objects.using("default").order_by("pk").values())
+
+
+def test_logo_inventory_finds_interrupted_allocation_on_writer(settings, tmp_path, monkeypatch):
+    settings.MEDIA_ROOT = tmp_path
+    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
+    service = Service.objects.using("secondary").create(
+        name="Writer logo", logo_file=SimpleUploadedFile("live.svg", b"<svg/>"), is_active=False
+    )
+    storage = service.logo_file.storage
+    orphan = storage.save("services/logos/recovery/interrupted.svg", ContentFile(b""))
+    untouched = storage.save("other/interrupted.svg", ContentFile(b""))
+    os.utime(storage.path(orphan), (1_000, 1_000))
+    monkeypatch.setattr(inventory_service_logos, "time", lambda: 1_123)
+    Service.objects.using("default").create(name="Reader decoy", logo_file=orphan)
+    output = StringIO()
+
+    call_command("inventory_service_logos", stdout=output)
+
+    assert output.getvalue().count("age_seconds=") == 1
+    assert f'"{orphan}" age_seconds=123' in output.getvalue()
+    assert service.logo_file.name not in output.getvalue()
+    assert "1 of 2 service logo files unreferenced on secondary." in output.getvalue()
+    assert storage.exists(orphan)
+    assert storage.exists(untouched)
+    assert storage.exists(service.logo_file.name)
+    assert Service.objects.using("default").filter(logo_file=orphan).exists()
 
 
 @pytest.mark.parametrize("action", ["replace", "clear", "delete", "bulk"])
