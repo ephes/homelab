@@ -269,6 +269,41 @@ def test_media_not_modified_closes_opened_descriptor(client, settings, tmp_path,
     assert all(source.closed for source in opened)
 
 
+def test_media_not_modified_survives_reader_close_failure(client, settings, tmp_path, monkeypatch):
+    from config import media
+
+    settings.MEDIA_ROOT = tmp_path
+    (tmp_path / "logo.svg").write_bytes(b"logo")
+    first = client.get("/media/logo.svg")
+    first.close()
+    original_open = media._open_regular_file
+    close_attempts = []
+
+    class FailingClose:
+        def __init__(self, source):
+            self.source = source
+
+        def close(self):
+            self.source.close()
+            close_attempts.append(self.source)
+            raise OSError(errno.EIO, "reader close failed")
+
+    def open_with_failing_close(path):
+        source, metadata = original_open(path)
+        return FailingClose(source), metadata
+
+    monkeypatch.setattr(media, "_open_regular_file", open_with_failing_close)
+
+    cached = client.get("/media/logo.svg", HTTP_IF_NONE_MATCH=first["ETag"])
+    assert cached.status_code == 304
+    assert cached.content == b""
+    for header in ("ETag", "Last-Modified", "X-Content-Type-Options", "Content-Security-Policy"):
+        assert cached[header] == first[header]
+    cached.close()
+    assert len(close_attempts) == 1
+    assert close_attempts[0].closed
+
+
 @pytest.mark.parametrize("error_type", [OverflowError, OSError, ValueError])
 def test_media_invalid_date_keeps_etag_and_closes_source(client, settings, tmp_path, monkeypatch, error_type):
     from config import media

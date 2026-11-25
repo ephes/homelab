@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve HTTP 304 responses and their validators when closing the unused
+  media reader raises an OS error.
+
 - Update the development-only `virtualenv` lock entry (pulled in by
   pre-commit) to 21.14.13 for PYSEC-2026-4402, keeping the locked dependency
   audit clean.

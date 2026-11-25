@@ -137,6 +137,8 @@ path replacement.
 
 `If-None-Match` uses standard weak comparison, tag lists and `*`; matching GET/HEAD
 requests return 304 with the same validators and hardening headers as 200.
+If closing the unused reader raises an OS error, Django still returns the 304
+and makes only one close attempt.
 `If-None-Match` takes precedence over `If-Modified-Since`. Date-only requests
 conservatively receive the full response: second-resolution HTTP dates cannot
 prove that the cached generation is current. Invalid or stale tags also receive

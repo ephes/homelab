@@ -55,7 +55,7 @@ def _retire_descriptor(descriptor):
 
 
 def _retire_file(owner):
-    """Close a file object once on a failure path, keeping the caller's error."""
+    """Close a file object once without replacing the caller's outcome."""
     try:
         owner.close()
     except OSError:
@@ -185,5 +185,5 @@ def serve_media(request, path):
     except BaseException:
         _retire_file(source)
         raise
-    source.close()
+    _retire_file(source)
     return response
