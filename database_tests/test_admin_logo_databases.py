@@ -1,8 +1,7 @@
 """Admin logo ownership follows the routed write database, never default rows."""
 
 import os
-import sqlite3
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from io import StringIO
 from types import SimpleNamespace
 
@@ -11,7 +10,7 @@ from django.contrib import admin
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.db import connections, transaction
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.urls import reverse
 
@@ -73,48 +72,6 @@ def test_logo_inventory_finds_interrupted_allocation_on_writer(settings, tmp_pat
     assert storage.exists(untouched)
     assert storage.exists(service.logo_file.name)
     assert Service.objects.using("default").filter(logo_file=orphan).exists()
-
-
-def test_logo_inventory_reads_one_snapshot_across_reference_batches(settings, tmp_path, monkeypatch):
-    settings.MEDIA_ROOT = tmp_path
-    settings.DATABASE_ROUTERS = [SplitServiceRouter()]
-    storage = Service._meta.get_field("logo_file").storage
-    original = storage.save("services/logos/original.svg", ContentFile(b"original"))
-    replacement = storage.save("services/logos/replacement.svg", ContentFile(b"replacement"))
-    service = Service.objects.using("secondary").create(name="Synthetic service", logo_file=original)
-    reader = connections["secondary"]
-    # Allow a writer to commit while the reader holds its snapshot in WAL mode.
-    monkeypatch.setattr(reader, "transaction_mode", "DEFERRED")
-    monkeypatch.setattr(inventory_service_logos, "REFERENCE_BATCH_SIZE", 1)
-    with reader.cursor() as cursor:
-        journal_mode = cursor.execute("PRAGMA journal_mode").fetchone()[0]
-        assert cursor.execute("PRAGMA journal_mode=WAL").fetchone() == ("wal",)
-
-    batches = []
-    output = StringIO()
-    try:
-        with closing(sqlite3.connect(reader.settings_dict["NAME"], timeout=1, isolation_level=None)) as writer:
-
-            def move_reference(execute, sql, params, many, context):
-                if sql.startswith("SELECT DISTINCT"):
-                    batches.append(params)
-                    if len(batches) == 2:
-                        writer.execute("UPDATE core_service SET logo_file = ? WHERE id = ?", (replacement, service.pk))
-                return execute(sql, params, many, context)
-
-            with reader.execute_wrapper(move_reference):
-                call_command("inventory_service_logos", stdout=output)
-    finally:
-        with reader.cursor() as cursor:
-            cursor.execute(f"PRAGMA journal_mode={journal_mode}")
-
-    assert {name for (name,) in batches} == {original, replacement}
-    service.refresh_from_db(using="secondary")
-    assert service.logo_file.name == replacement
-    lines = output.getvalue().splitlines()
-    assert len(lines) == 2
-    assert lines[0].startswith(f'"{replacement}" age_seconds=')
-    assert lines[1] == "1 of 2 service logo files unreferenced on secondary."
 
 
 @pytest.mark.parametrize("action", ["replace", "clear", "delete", "bulk"])

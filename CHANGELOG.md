@@ -5,8 +5,8 @@
 - Report the committed database and service total when seed output fails,
   preserving the committed logos.
 
-- Use a single write-database snapshot for all batched service logo inventory
-  lookups.
+- Read all service logo references for the inventory in one write-database
+  query, so the report reflects a single database snapshot on every backend.
 
 - Add a bounded, read-only `inventory_service_logos` command for finding files
   without a Service reference on the write database, including allocations

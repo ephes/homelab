@@ -1,18 +1,16 @@
 import json
 import os
 import stat
-from itertools import batched
 from pathlib import Path
 from time import time
 
 from django.core.files.storage import FileSystemStorage
 from django.core.management.base import BaseCommand, CommandError
-from django.db import DatabaseError, router, transaction
+from django.db import DatabaseError, router
 
 from apps.core.models import Service
 
 MAX_ENTRIES = 10_000
-REFERENCE_BATCH_SIZE = 500
 
 
 def _file_mtimes(root: Path, prefix: str) -> dict[str, float]:
@@ -57,15 +55,15 @@ class Command(BaseCommand):
             files = _file_mtimes(Path(storage.path(prefix)), prefix)
             referenced = set()
             if files:
-                services = Service.objects.using(using)
-                with transaction.atomic(using=using):
-                    for names in batched(files, REFERENCE_BATCH_SIZE):
-                        referenced.update(
-                            services.filter(logo_file__in=names)
-                            .order_by()
-                            .values_list("logo_file", flat=True)
-                            .distinct()
-                        )
+                # One statement reads all references from a single snapshot on
+                # every backend; Service rows are few compared to stored files.
+                referenced.update(
+                    Service.objects.using(using)
+                    .exclude(logo_file="")
+                    .order_by()
+                    .values_list("logo_file", flat=True)
+                    .distinct()
+                )
         except (OSError, DatabaseError) as exc:
             raise CommandError(f"Service logo inventory incomplete: {exc}") from exc
 

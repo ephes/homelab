@@ -242,9 +242,9 @@ based on the last modification time. Inactive services also protect their
 referenced logos.
 
 The inventory changes neither files nor rows. It observes the filesystem during
-the scan, then checks all database references in a single snapshot. The default
-SQLite configuration reserves the writer lock during those lookups. Pause logo
-uploads and seed runs for a stable report, since an upload in progress may
+the scan, then reads all logo references of the write database in one query, so
+the reference check reflects a single database snapshot on every backend. Pause
+logo uploads and seed runs for a stable report, since an upload in progress may
 appear unreferenced until its transaction commits. The scan examines at most
 10,000 directory entries and exits with an error and no report if it exceeds
 the limit or if storage scanning or a database reference check fails.
