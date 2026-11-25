@@ -5,7 +5,7 @@ from pathlib import Path
 
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import router, transaction
 
 from apps.core.logo_storage import write_logo_chunk
@@ -284,6 +284,10 @@ class Command(BaseCommand):
         ]
 
     def handle(self, *args, **options):
+        using = router.db_for_write(Service)
+        if not transaction.get_autocommit(using=using):
+            raise CommandError(f"add_default_services requires autocommit on database '{using}'.")
+
         logos_dir = Path(__file__).parent.parent.parent / "static" / "core" / "logos"
 
         # Logo files are written to storage right away, but the service rows only
@@ -293,7 +297,6 @@ class Command(BaseCommand):
         messages: list[str] = []
         warnings: list[str] = []
         logo_storage = Service._meta.get_field("logo_file").storage
-        using = router.db_for_write(Service)
 
         def report_success():
             for message in messages:

@@ -155,6 +155,10 @@ packaged image is missing or is a nonregular file (such as a directory or FIFO),
 the command skips logo storage, warns on stderr after commit and the tile uses
 its icon fallback.
 
+Run the command with autocommit enabled on the Service write database. An
+existing transaction on that database is rejected before any rows or logos are
+written, so the command can clean up its logo allocations if the seed fails.
+
 The command reports created and kept services, added logos, and the total only
 after the database commits. It counts services inside the seed transaction, so
 later writes leave the reported total unchanged. If counting fails, the seed

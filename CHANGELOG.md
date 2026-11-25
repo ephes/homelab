@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Require autocommit on the Service write database before seeding defaults and
+  allocating logos.
+
 - Delete individually confirmed services and retire their logos on the database
   bound to the admin confirmation.
 

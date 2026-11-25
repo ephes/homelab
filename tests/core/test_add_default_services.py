@@ -9,11 +9,14 @@ from unittest.mock import patch
 import pytest
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.core.management import call_command
+from django.core.files.storage import InMemoryStorage
+from django.core.management import CommandError, call_command
 from django.db import IntegrityError, OperationalError, connection, transaction
 
 from apps.core.management.commands import add_default_services
 from apps.core.models import Service
+
+pytestmark = pytest.mark.django_db(transaction=True)
 
 LOGOS = Path(__file__).resolve().parents[2] / "src" / "apps" / "core" / "static" / "core" / "logos"
 RUSTFS_DESCRIPTION = (
@@ -203,7 +206,6 @@ def fail_logo_save_on_call(monkeypatch, failing_call):
     return calls
 
 
-@pytest.mark.django_db(transaction=True)
 def test_failed_logo_save_rolls_back_without_success_output(logo_dir, monkeypatch):
     stdout, stderr = StringIO(), StringIO()
     with monkeypatch.context() as patch:
@@ -217,9 +219,7 @@ def test_failed_logo_save_rolls_back_without_success_output(logo_dir, monkeypatc
     assert stderr.getvalue().count("Removed logo file") == 2
     assert stdout.getvalue() == ""
 
-    with transaction.atomic():
-        call_command("add_default_services", stdout=stdout, stderr=stderr)
-        assert stdout.getvalue() == ""
+    call_command("add_default_services", stdout=stdout, stderr=stderr)
 
     output = stdout.getvalue().splitlines()
     for service in Service.objects.all():
@@ -417,7 +417,6 @@ def test_failed_row_save_after_logo_was_stored_removes_that_logo(logo_dir, monke
     assert stored_logos(logo_dir) == []
 
 
-@pytest.mark.django_db(transaction=True)
 def test_seed_count_failure_rolls_back_without_success_output(logo_dir, monkeypatch):
     def fail(*args, **kwargs):
         raise OperationalError("synthetic count failure")
@@ -433,17 +432,26 @@ def test_seed_count_failure_rolls_back_without_success_output(logo_dir, monkeypa
     assert stored_logos(logo_dir) == []
 
 
-@pytest.mark.django_db(transaction=True)
-def test_deferred_seed_summary_uses_count_recorded_before_later_write(logo_dir):
+def test_seed_rejects_caller_transaction_before_allocating_logos(monkeypatch):
+    storage = InMemoryStorage()
+    monkeypatch.setattr(Service._meta.get_field("logo_file"), "storage", storage)
     stdout, stderr = StringIO(), StringIO()
-    with transaction.atomic():
-        call_command("add_default_services", stdout=stdout, stderr=stderr)
-        seed_total = Service.objects.count()
-        Service.objects.create(name="Synthetic later service")
-        assert stdout.getvalue() == ""
 
-    assert Service.objects.count() == seed_total + 1
-    assert stdout.getvalue().splitlines()[-1] == f"Total services in database: {seed_total}"
+    with transaction.atomic():
+        with patch.object(storage, "save", wraps=storage.save) as save_logo:
+            with pytest.raises(CommandError, match="requires autocommit"):
+                call_command("add_default_services", stdout=stdout, stderr=stderr)
+            save_logo.assert_not_called()
+
+    assert not Service.objects.exists()
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue() == ""
+
+    call_command("add_default_services", stdout=stdout, stderr=stderr)
+    logo = Service.objects.get(name="Home Assistant").logo_file
+    with storage.open(logo.name, "rb") as source:
+        assert source.read() == (LOGOS / "home-assistant.png").read_bytes()
+    assert stdout.getvalue().splitlines()[-1] == f"Total services in database: {Service.objects.count()}"
 
 
 def test_retry_after_failed_run_leaves_one_logo_per_service(logo_dir, monkeypatch):
@@ -506,7 +514,6 @@ def test_broken_cleanup_diagnostics_preserve_original_failure(logo_dir, monkeypa
     assert stored_logos(logo_dir) == ([Path(attempted[0]).name] if delete_fails else [])
 
 
-@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("lookup_fails", [False, True])
 def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails):
     pending = []
@@ -545,7 +552,6 @@ def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails
         assert "synthetic reference lookup failure" in stderr.getvalue()
 
 
-@pytest.mark.django_db(transaction=True)
 def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir):
     from django.db.models.signals import post_save
 
@@ -588,7 +594,6 @@ def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir):
     assert "Removed logo file" not in stderr.getvalue()
 
 
-@pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize("is_directory", [False, True], ids=["missing", "directory"])
 def test_unavailable_packaged_logo_reports_fallback_without_interrupting_seed(
     logo_dir, tmp_path, monkeypatch, client, is_directory
