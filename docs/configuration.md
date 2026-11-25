@@ -107,9 +107,11 @@ can be exhausted. Test settings use the same transaction mode.
 
 Admin service logos are limited to **1 MiB (1,048,576 bytes)** per file.
 The form rejects a declared oversize before reading the upload, then counts
-actual chunks and stops before accepting an excess chunk. A bounded in-memory
-snapshot supplies the save; misleading upload size metadata cannot bypass the
-limit. A field error leaves the stored service, revision and previous logo intact.
+actual chunks and stops before accepting an excess chunk. The byte count must
+match the upload's declared size before the form passes its bounded in-memory
+snapshot to the save. A size mismatch or oversized upload produces a field error
+before storage allocates a file and leaves the service, revision and previous
+logo intact.
 The storage copy also checks the actual total before every write; if copying
 fails after reserving a name, the existing allocation cleanup removes the new
 partial file. Existing and shared logos retain their normal ownership rules.

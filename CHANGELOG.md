@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reject incomplete admin logo uploads before allocating storage and preserve
+  the previous logo.
+
 - Preserve the original admin save error and continue logo cleanup when logging
   a failed upload cleanup raises.
 

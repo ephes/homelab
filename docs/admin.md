@@ -184,8 +184,9 @@ on the writer database in one transaction before any destructive effects.
 
 ### Logo upload size
 
-Admin logo uploads must be at most **1 MiB (1,048,576 bytes)**. Oversize files
-produce a logo field error and preserve the existing service and logo. The
+Admin logo uploads must be at most **1 MiB (1,048,576 bytes)** and match their
+declared size. Oversize or incomplete uploads produce a logo field error before
+a file is allocated and preserve the existing service and logo. The
 [configuration guide](configuration.md#admin-logo-upload-budget) describes the
 actual-byte checks and their scope.
 

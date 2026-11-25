@@ -309,7 +309,7 @@ def test_post_commit_error_keeps_committed_upload(admin_client, settings, tmp_pa
 
 
 @pytest.mark.parametrize("change", [False, True])
-@pytest.mark.parametrize("kind", ["declared", "lying_single", "lying_late", "boundary"])
+@pytest.mark.parametrize("kind", ["declared", "lying_single", "lying_late", "truncated", "boundary"])
 def test_admin_logo_byte_budget(admin_client, settings, tmp_path, monkeypatch, change, kind):
     limit = 1024 * 1024
     settings.MEDIA_ROOT = tmp_path
@@ -318,7 +318,15 @@ def test_admin_logo_byte_budget(admin_client, settings, tmp_path, monkeypatch, c
     storage = service.logo_file.storage
     before = {path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob("*") if path.is_file()}
     writes = []
+    reservations = []
     original_open = storage.open
+    original_save = storage.save
+
+    def record_save(*args, **kwargs):
+        reservations.append(args[0])
+        return original_save(*args, **kwargs)
+
+    monkeypatch.setattr(storage, "save", record_save)
 
     def record_open(name, mode="rb"):
         if "w" in mode:
@@ -341,6 +349,13 @@ def test_admin_logo_byte_budget(admin_client, settings, tmp_path, monkeypatch, c
 
         monkeypatch.setattr(InMemoryUploadedFile, "chunks", lying_chunks)
         payload = b"claimed small"
+    elif kind == "truncated":
+
+        def truncated_chunks(self, chunk_size=None):
+            yield b"short"
+
+        monkeypatch.setattr(InMemoryUploadedFile, "chunks", truncated_chunks)
+        payload = b"full upload"
     else:
         payload = b"x" * (limit + (kind == "declared"))
         if kind == "declared":
@@ -370,7 +385,9 @@ def test_admin_logo_byte_budget(admin_client, settings, tmp_path, monkeypatch, c
         assert writes
     else:
         assert response.status_code == 200
-        assert "at most 1 MiB" in str(response.context["adminform"].form.errors["logo_file"])
+        error = str(response.context["adminform"].form.errors["logo_file"])
+        assert ("does not match its declared size" if kind == "truncated" else "at most 1 MiB") in error
+        assert not reservations
         assert not writes
         assert service.name == "Original"
         assert service.updated_at == old_revision
@@ -453,7 +470,7 @@ def test_admin_saves_only_the_validated_logo_snapshot(admin_client, settings, mo
             "order": "0",
             "is_active": "on",
             "_save": "Save",
-            "logo_file": SimpleUploadedFile("new.svg", b"claimed small"),
+            "logo_file": SimpleUploadedFile("new.svg", b"initial logo"),
         },
     )
     assert response.status_code == 302

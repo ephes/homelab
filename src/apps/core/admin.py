@@ -43,7 +43,8 @@ class ServiceAdminForm(forms.ModelForm):
         upload = self.cleaned_data.get("logo_file")
         if not isinstance(upload, UploadedFile):
             return upload
-        if upload.size > MAX_LOGO_BYTES:
+        expected_size = upload.size
+        if expected_size > MAX_LOGO_BYTES:
             raise forms.ValidationError(LOGO_SIZE_ERROR)
         # Validate actual bytes before storage allocation, and keep a bounded
         # snapshot so saving cannot replay a different/untrusted upload stream.
@@ -52,8 +53,10 @@ class ServiceAdminForm(forms.ModelForm):
             if len(chunk) > MAX_LOGO_BYTES - len(content):
                 raise forms.ValidationError(LOGO_SIZE_ERROR)
             content.extend(chunk)
+        if len(content) != expected_size:
+            raise forms.ValidationError("The uploaded logo does not match its declared size.")
         return UploadedFile(
-            file=ContentFile(content), name=upload.name, content_type=upload.content_type, size=len(content)
+            file=ContentFile(content), name=upload.name, content_type=upload.content_type, size=expected_size
         )
 
     def clean(self):
