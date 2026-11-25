@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Report the committed database and service total when seed output fails,
+  preserving the committed logos.
+
 - Use a single write-database snapshot for all batched service logo inventory
   lookups.
 

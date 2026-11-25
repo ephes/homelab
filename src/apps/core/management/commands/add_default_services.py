@@ -297,13 +297,20 @@ class Command(BaseCommand):
         messages: list[str] = []
         warnings: list[str] = []
         logo_storage = Service._meta.get_field("logo_file").storage
+        committed = False
 
         def report_success():
+            nonlocal committed
+            committed = True
             for message in messages:
                 self.stdout.write(self.style.SUCCESS(message))
             for warning in warnings:
                 self.stderr.write(self.style.WARNING(warning))
             self.stdout.write(self.style.SUCCESS(f"\nTotal services in database: {total}"))
+            # A buffered pipe can fail only when flushed.
+            self.stdout.flush()
+            if warnings:
+                self.stderr.flush()
 
         try:
             with transaction.atomic(using=using):
@@ -372,10 +379,15 @@ class Command(BaseCommand):
 
                 total = Service.objects.using(using).count()
                 transaction.on_commit(report_success, using=using)
-        except BaseException:
-            # An on_commit callback can fail after rows have committed. Only
-            # compensate allocations verified unreferenced on the write DB.
-            self._remove_stored_logos(logo_storage, stored_logo_names, using)
+        except BaseException as error:
+            if not committed:
+                # An earlier on_commit callback can fail before the reporter.
+                # Only compensate allocations verified unreferenced on the write DB.
+                self._remove_stored_logos(logo_storage, stored_logo_names, using)
+            elif isinstance(error, Exception):
+                raise CommandError(
+                    f"Service seed committed on database '{using}' (total services: {total}). Output failed ({error})."
+                ) from error
             raise
 
     def _remove_stored_logos(self, storage, names: list[str], using: str) -> None:

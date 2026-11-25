@@ -515,17 +515,24 @@ def test_broken_cleanup_diagnostics_preserve_original_failure(logo_dir, monkeypa
 
 
 @pytest.mark.parametrize("lookup_fails", [False, True])
-def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails):
+def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails, monkeypatch):
     pending = []
     cleanup_queries = []
 
-    class FailingReporter(StringIO):
-        def write(self, text):
-            # After commit, simulate an intervening writer retaining only one logo.
-            logos = Service.objects.exclude(logo_file="").order_by("pk")
-            pending.extend(logos.values_list("logo_file", flat=True))
-            logos.exclude(logo_file=pending[0]).update(logo_file="")
-            raise BrokenPipeError("synthetic reporter failure")
+    def fail_after_commit():
+        # After commit, simulate an intervening writer retaining only one logo.
+        logos = Service.objects.exclude(logo_file="").order_by("pk")
+        pending.extend(logos.values_list("logo_file", flat=True))
+        logos.exclude(logo_file=pending[0]).update(logo_file="")
+        raise RuntimeError("synthetic callback failure")
+
+    on_commit = transaction.on_commit
+
+    def insert_failing_callback(callback, using=None):
+        on_commit(fail_after_commit, using=using)
+        on_commit(callback, using=using)
+
+    monkeypatch.setattr(transaction, "on_commit", insert_failing_callback)
 
     def observe_cleanup(execute, sql, params, many, context):
         if pending and sql.startswith("SELECT"):
@@ -537,9 +544,9 @@ def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails
     stderr = StringIO()
     with (
         connection.execute_wrapper(observe_cleanup),
-        pytest.raises(BrokenPipeError, match="synthetic reporter failure"),
+        pytest.raises(RuntimeError, match="synthetic callback failure"),
     ):
-        call_command("add_default_services", stdout=FailingReporter(), stderr=stderr)
+        call_command("add_default_services", stdout=StringIO(), stderr=stderr)
 
     assert len(pending) > 2
     assert len(cleanup_queries) == 1
@@ -550,6 +557,48 @@ def test_seed_cleanup_checks_pending_logo_references_once(logo_dir, lookup_fails
     assert (logo_dir / retained).read_bytes() == (LOGOS / retained).read_bytes()
     if lookup_fails:
         assert "synthetic reference lookup failure" in stderr.getvalue()
+
+
+@pytest.mark.parametrize("operation", ["write", "flush"])
+def test_seed_output_failure_reports_commit_and_keeps_logos(logo_dir, tmp_path, monkeypatch, operation):
+    packaged = tmp_path / "static" / "core" / "logos"
+    packaged.mkdir(parents=True)
+    source = packaged / "test.svg"
+    content = b"<svg/>"
+    source.write_bytes(content)
+    monkeypatch.setattr(
+        add_default_services, "__file__", str(tmp_path / "management" / "commands" / "add_default_services.py")
+    )
+    monkeypatch.setattr(
+        add_default_services.Command,
+        "_default_services",
+        lambda self: [{"name": "Seed service", "logo_filename": source.name}],
+    )
+    output_error = BrokenPipeError("synthetic stdout failure")
+    stdout, stderr = StringIO(), StringIO()
+    cleanup_queries = []
+
+    def observe_cleanup(execute, sql, params, many, context):
+        if sql.startswith("SELECT DISTINCT"):
+            cleanup_queries.append(params)
+        return execute(sql, params, many, context)
+
+    with (
+        patch.object(stdout, operation, side_effect=output_error),
+        connection.execute_wrapper(observe_cleanup),
+        pytest.raises(
+            CommandError, match=r"committed on database 'default' \(total services: 1\).*Output failed"
+        ) as error,
+    ):
+        call_command("add_default_services", stdout=stdout, stderr=stderr)
+
+    assert error.value.__cause__ is output_error
+    assert cleanup_queries == []
+    service = Service.objects.get(name="Seed service")
+    assert service.logo_file.name == f"services/logos/{source.name}"
+    assert stored_logos(logo_dir) == [source.name]
+    assert (logo_dir / source.name).read_bytes() == content
+    assert not stderr.getvalue()
 
 
 def test_postcommit_callback_failure_keeps_referenced_logos(logo_dir):

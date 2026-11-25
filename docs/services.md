@@ -164,8 +164,11 @@ after the database commits. It counts services inside the seed transaction, so
 later writes leave the reported total unchanged. If counting fails, the seed
 rolls back before publishing success messages. Cleanup diagnostics for a failed
 run go to stderr.
-If stderr fails, the command continues cleaning up eligible logo allocations
-and preserves the original seed error.
+If stderr fails during cleanup, the command continues cleaning up eligible logo
+allocations and preserves the original seed error.
+If writing or flushing the report fails after commit, the command raises a
+`CommandError` with the write database alias and committed service total. The
+services and logos stay in place, and the CLI exits with an error status.
 
 OpsGate was retired on 2026-11-10 (stopped, data kept): its production tile is set
 inactive (`is_active=false`) and, because the command keeps the active status of an
@@ -211,7 +214,7 @@ Each logo name is first reserved through the storage, which picks a free name an
 file atomically; only names reserved by the failing run are removed, never a file another
 upload created in the meantime.
 
-A callback can fail after the database commit has already succeeded. The command
+A callback scheduled before the success reporter can fail after commit. The command
 still reports that original exception, but preserves every newly allocated logo
 referenced by committed rows on the write database. Cleanup checks pending
 allocations in one query on that database. If the lookup fails, cleanup keeps
