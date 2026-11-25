@@ -213,9 +213,10 @@ The command is documented in [Testing](testing.md#media-descriptor-and-routed-ad
 
 This applies to future admin actions only, not direct model/queryset changes or
 historical orphan files. It cannot compensate a rollback in a caller-owned outer
-transaction after the admin view has returned successfully. Storage cleanup failures
-are logged and never hide the original save error or undo a committed database
-change; failed cleanup may require a manual retry.
+transaction after the admin view has returned successfully. If cleanup of a failed
+upload raises, the admin attempts to log the failure and continues checking other
+allocations even when logging fails. The original save error still propagates and
+committed database changes are preserved. Failed cleanup may require a manual retry.
 
 ## User Management
 

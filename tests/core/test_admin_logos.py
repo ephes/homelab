@@ -203,6 +203,59 @@ def test_failed_admin_upload_removes_only_new_file(admin_client, settings, tmp_p
         assert source.read() == b"old logo"
 
 
+def test_failed_admin_form_keeps_primary_error_when_cleanup_logging_fails(
+    admin_client, settings, tmp_path, monkeypatch
+):
+    from django.contrib import admin
+
+    settings.MEDIA_ROOT = str(tmp_path)
+    storage = Service._meta.get_field("logo_file").storage
+    model_admin = admin.site._registry[Service]
+    names = []
+    attempted = []
+    original_delete = storage.delete
+    failure = RuntimeError("saving related records failed")
+
+    def fail_save_related(request, *args, **kwargs):
+        ((first, using),) = request._service_logo_uploads
+        # Add a second owned allocation to exercise the form rollback loop.
+        second = storage.save("services/logos/second.svg", SimpleUploadedFile("second.svg", b"second logo"))
+        request._service_logo_uploads.append((second, using))
+        names.extend([first, second])
+        raise failure
+
+    def fail_first_delete(name):
+        attempted.append(name)
+        if name == names[0]:
+            raise OSError("storage delete failed")
+        original_delete(name)
+
+    def fail_log(*args, **kwargs):
+        raise RuntimeError("diagnostic sink failed")
+
+    monkeypatch.setattr(model_admin, "save_related", fail_save_related)
+    monkeypatch.setattr(storage, "delete", fail_first_delete)
+    monkeypatch.setattr(logger, "exception", fail_log)
+
+    with pytest.raises(RuntimeError, match="saving related records failed") as raised:
+        admin_client.post(
+            reverse("admin:core_service_add"),
+            {
+                "name": "New",
+                "order": "0",
+                "is_active": "on",
+                "logo_file": SimpleUploadedFile("first.svg", b"first logo"),
+                "_save": "Save",
+            },
+        )
+
+    assert raised.value is failure
+    assert not Service.objects.exists()
+    assert attempted == names
+    assert storage.exists(names[0])
+    assert not storage.exists(names[1])
+
+
 def test_successful_admin_add_keeps_upload(admin_client, settings, tmp_path):
     settings.MEDIA_ROOT = str(tmp_path)
     response = admin_client.post(

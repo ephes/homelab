@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve the original admin save error and continue logo cleanup when logging
+  a failed upload cleanup raises.
+
 - Require autocommit on the Service write database before seeding defaults and
   allocating logos.
 

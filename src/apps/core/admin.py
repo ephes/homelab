@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 
 from django import forms
 from django.contrib import admin, messages
@@ -257,7 +258,9 @@ class ServiceAdmin(admin.ModelAdmin):
                 if using is None or not self.model.objects.using(using).filter(logo_file=name).exists():
                     storage.delete(name)
             except Exception:
-                logger.exception("Could not clean up failed service upload %s", name)
+                # Keep the save error and check the remaining allocations.
+                with suppress(Exception):
+                    logger.exception("Could not clean up failed service upload")
 
     def get_form(self, request, obj=None, change=False, **kwargs):
         form = super().get_form(request, obj, change=change, **kwargs)
