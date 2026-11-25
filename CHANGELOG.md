@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Update the development-only `virtualenv` lock entry (pulled in by
+  pre-commit) to 21.14.13 for PYSEC-2026-4402, keeping the locked dependency
+  audit clean.
+
 - Continue retiring unreferenced admin logos when logging a failed reference
   lookup or file deletion raises.
 
