@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Point the Projekt Heis and Projekt Marina dashboard tiles to their production
+  sites. Migration 0024 updates matching staging tiles when the production tile
+  name is available and preserves custom descriptions.
+
 - Add a start and stop switch to the Minecraft dashboard tile with live systemd
   and TCP readiness status. Once systemd marks the unit active, the switch can
   stop the server even while the game port is closed. Production uses
@@ -13,7 +17,7 @@
   with or without a trailing slash and preserves custom descriptions.
 
 - Add default tiles for Haushalt, Opaq, Fallakte, Chesslab, Weeknotes, Radarr,
-  Sonarr, Prowlarr, Durchreiche and five client staging sites.
+  Sonarr, Prowlarr, Durchreiche and five client project sites.
 
 - Remove the Zellij (studio) tile: Zellij web was retired on 2026-11-27. The
   default services no longer offer it, and migration 0022 deletes an installed

@@ -326,7 +326,7 @@ class Command(BaseCommand):
                 "icon": "fas fa-exchange-alt",
                 "order": 39,
             },
-            # Client project staging sites.
+            # Client project sites.
             {
                 "name": "Projekt GGS Lennestraße (Staging)",
                 "description": "Client project staging site for GGS Lennestraße",
@@ -349,16 +349,16 @@ class Command(BaseCommand):
                 "order": 42,
             },
             {
-                "name": "Projekt Heis (Staging)",
-                "description": "Client project staging site for Heis",
-                "url": "https://heis.staging.django-cast.com/",
+                "name": "Projekt Heis",
+                "description": "Client project production site for Heis",
+                "url": "https://fabian-heis.de/",
                 "icon": "fas fa-flask",
                 "order": 43,
             },
             {
-                "name": "Projekt Marina (Staging)",
-                "description": "Client project staging site for Marina",
-                "url": "https://marina.staging.django-cast.com/",
+                "name": "Projekt Marina",
+                "description": "Client project production site for Marina",
+                "url": "https://marina-adler.de/",
                 "icon": "fas fa-flask",
                 "order": 44,
             },

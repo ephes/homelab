@@ -401,3 +401,105 @@ def test_tile_refresh_clears_retired_gotosocial_collision_before_renaming(before
 
     assert not services.filter(pk=retired.pk).exists()
     assert services.get(name="GoToSocial").pk == takahe.pk
+
+
+CLIENT_TILE_SWITCH = ("core", "0024_switch_client_tiles_to_production")
+
+
+@pytest.fixture
+def before_client_tile_switch(at_initial):
+    return migrate("secondary", [TILE_REFRESH])
+
+
+@pytest.fixture(
+    params=[
+        ("Projekt Heis", "https://heis.staging.django-cast.com/", "https://fabian-heis.de/"),
+        ("Projekt Marina", "https://marina.staging.django-cast.com/", "https://marina-adler.de/"),
+    ],
+    ids=["heis", "marina"],
+)
+def client_site(request):
+    return request.param
+
+
+def apply_client_tile_switch(model):
+    default_before = rows(model, "default")
+    migrate("secondary", [CLIENT_TILE_SWITCH])
+    assert rows(model, "default") == default_before
+    after = rows(model, "secondary")
+    migrate("secondary", [TILE_REFRESH])
+    assert rows(model, "secondary") == after  # The reverse is a no-op.
+    assert rows(model, "default") == default_before
+    return after
+
+
+@pytest.mark.parametrize("trailing_slash", [True, False], ids=["with-slash", "without-slash"])
+def test_client_tile_switch_updates_matching_tile_in_place(before_client_tile_switch, client_site, trailing_slash):
+    model = before_client_tile_switch
+    name, staging_url, production_url = client_site
+    old_name = f"{name} (Staging)"
+    project = name.removeprefix("Projekt ")
+    for alias in ("default", "secondary"):
+        tile = customize(model, alias, old_name)
+        model.objects.using(alias).filter(pk=tile.pk).update(
+            url=staging_url if trailing_slash else staging_url.rstrip("/"),
+            description=f"Client project staging site for {project}",
+        )
+
+    services = model.objects.using("secondary")
+    for other_project, slug in [
+        ("GGS Lennestraße", "ggs"),
+        ("Villa Kunterbunt", "villakunterbunt"),
+        ("Django Chat", "djangochat"),
+    ]:
+        services.create(
+            name=f"Projekt {other_project} (Staging)",
+            url=f"https://{slug}.staging.django-cast.com/",
+        )
+    other_tiles = list(services.exclude(name=old_name).order_by("pk").values())
+    before = services.values().get(name=old_name)
+
+    apply_client_tile_switch(model)
+
+    after = services.values().get(name=name)
+    assert after.pop("updated_at") != before.pop("updated_at")
+    assert after == {
+        **before,
+        "name": name,
+        "url": production_url,
+        "description": f"Client project production site for {project}",
+    }
+    assert list(services.exclude(name=name).order_by("pk").values()) == other_tiles
+
+
+@pytest.mark.parametrize("description", ["Owner text", ""], ids=["custom", "blank"])
+def test_client_tile_switch_preserves_owner_description(before_client_tile_switch, client_site, description):
+    model = before_client_tile_switch
+    name, staging_url, production_url = client_site
+    services = model.objects.using("secondary")
+    tile = services.create(name=f"{name} (Staging)", url=staging_url, description=description)
+
+    apply_client_tile_switch(model)
+
+    tile = services.get(pk=tile.pk)
+    assert (tile.name, tile.url, tile.description) == (name, production_url, description)
+
+
+def test_client_tile_switch_requires_both_staging_name_and_url(before_client_tile_switch, client_site):
+    model = before_client_tile_switch
+    name, staging_url, _ = client_site
+    customize(model, "secondary", f"{name} (Staging)")
+    model.objects.using("secondary").create(name="Custom staging tile", url=staging_url)
+    before = rows(model, "secondary")
+
+    assert apply_client_tile_switch(model) == before
+
+
+def test_client_tile_switch_leaves_both_tiles_when_production_name_exists(before_client_tile_switch, client_site):
+    model = before_client_tile_switch
+    name, staging_url, _ = client_site
+    model.objects.using("secondary").create(name=f"{name} (Staging)", url=staging_url)
+    customize(model, "secondary", name)
+    before = rows(model, "secondary")
+
+    assert apply_client_tile_switch(model) == before

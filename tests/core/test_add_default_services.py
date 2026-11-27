@@ -167,14 +167,18 @@ def test_add_default_services_adds_tiles_after_work_in_order(logo_dir):
         ("Projekt GGS Lennestraße (Staging)", "https://ggs.staging.django-cast.com/"),
         ("Projekt Villa Kunterbunt (Staging)", "https://villakunterbunt.staging.django-cast.com/"),
         ("Projekt Django Chat (Staging)", "https://djangochat.staging.django-cast.com/"),
-        ("Projekt Heis (Staging)", "https://heis.staging.django-cast.com/"),
-        ("Projekt Marina (Staging)", "https://marina.staging.django-cast.com/"),
+        ("Projekt Heis", "https://fabian-heis.de/"),
+        ("Projekt Marina", "https://marina-adler.de/"),
     ]
     tiles = list(Service.objects.filter(order__range=(31, 44)).order_by("order"))
     assert [(tile.name, tile.url) for tile in tiles] == expected
     assert [tile.order for tile in tiles] == list(range(31, 45))
     assert all(tile.is_active and tile.description and tile.icon.startswith("fas fa-") for tile in tiles)
     assert all(not tile.logo_file for tile in tiles)
+    assert [(tile.description, tile.icon) for tile in tiles[-2:]] == [
+        ("Client project production site for Heis", "fas fa-flask"),
+        ("Client project production site for Marina", "fas fa-flask"),
+    ]
 
 
 # --- logo files and transaction rollback ---------------------------------------------

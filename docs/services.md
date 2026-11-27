@@ -240,8 +240,14 @@ order. Reversing the migration keeps these changes. A fresh installation shows
 `GoToSocial` active at order 18.
 
 The deploy seed command adds missing tiles for Haushalt, Opaq, Fallakte, Chesslab,
-Weeknotes, Radarr, Sonarr, Prowlarr and Durchreiche at orders 31–39. The five
-client staging sites follow at orders 40–44 under names beginning with `Projekt`.
+Weeknotes, Radarr, Sonarr, Prowlarr and Durchreiche at orders 31–39. The staging
+tiles for Projekt GGS Lennestraße, Projekt Villa Kunterbunt and Projekt Django Chat
+follow at orders 40–42. Projekt Heis and Projekt Marina link to
+`https://fabian-heis.de/` and `https://marina-adler.de/` at orders 43 and 44.
+Migration `0024_switch_client_tiles_to_production` updates an installed tile when
+its staging name and URL match, with or without a trailing slash in the URL, and
+the production tile name is available. It replaces the original seed description
+and preserves custom descriptions. Reversing the migration keeps these changes.
 
 After copying a missing logo, the command reloads the service under a database
 lock and saves only the logo and revision. Owner edits made during copying are
