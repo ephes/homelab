@@ -187,6 +187,11 @@ cleared only while it names a seeded `minio*.png` copy, so the next
 `RustFS` tile already exists, the MinIO tile is only set inactive. The stored MinIO logo
 file stays in `MEDIA_ROOT/services/logos/` (unreferenced), and the reverse migration
 keeps the replacement.
+Zellij web was retired on 2026-11-27 (the owner uses herdr, T3 Code and Claude
+Desktop instead, and ops-control removed the route). The seed entry `Zellij (studio)`
+is gone, and migration `0022_remove_retired_zellij_tile` deletes every installed tile
+that still links to `https://zellij.home.xn--wersdrfer-47a.de/`, whatever its name;
+other tiles stay. The reverse migration does not bring the tile back.
 After copying a missing logo, the command reloads the service under a database
 lock and saves only the logo and revision. Owner edits made during copying are
 preserved. If another writer has supplied a logo, that logo wins and the command

@@ -250,13 +250,8 @@ class Command(BaseCommand):
                 "icon": "fas fa-box-archive",
                 "order": 26,
             },
-            {
-                "name": "Zellij (studio)",
-                "description": "Web client for the zellij terminal multiplexer running on studio (tailnet only)",
-                "url": "https://zellij.home.xn--wersdrfer-47a.de/",
-                "icon": "fas fa-terminal",
-                "order": 27,
-            },
+            # Zellij (studio), order 27, was retired on 2026-11-27; migration 0022
+            # deletes its installed tile.
             {
                 "name": "Mailgun Relay",
                 "description": "Self-hosted Mailgun-API-compatible SMTP relay for django-anymail clients",

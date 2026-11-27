@@ -740,3 +740,21 @@ def test_every_default_logo_is_packaged():
     ]
 
     assert missing == []
+
+
+# --- Zellij web was retired on 2026-11-27 ---------------------------------------------
+
+
+def test_add_default_services_no_longer_offers_zellij(logo_dir):
+    call_command("add_default_services", stdout=StringIO())
+
+    assert not Service.objects.filter(url="https://zellij.home.xn--wersdrfer-47a.de/").exists()
+    assert not Service.objects.filter(name__icontains="zellij").exists()
+
+
+def test_zellij_seed_url_matches_the_removal_migration():
+    from importlib import import_module
+
+    migration = import_module("apps.core.migrations.0022_remove_retired_zellij_tile")
+
+    assert migration.ZELLIJ_URL == "https://zellij.home.xn--wersdrfer-47a.de/"

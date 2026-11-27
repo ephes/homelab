@@ -214,3 +214,54 @@ def test_replacement_without_a_minio_tile_changes_nothing(at_initial):
     before = rows(model, "secondary")
 
     assert replace(model) == before
+
+
+ZELLIJ_REMOVAL = ("core", "0022_remove_retired_zellij_tile")
+BEFORE_ZELLIJ_REMOVAL = [("core", "0021_service_logo_file_index")]
+ZELLIJ_TILE = {
+    "name": "Zellij (studio)",
+    "description": "Web client for the zellij terminal multiplexer running on studio (tailnet only)",
+    "url": "https://zellij.home.xn--wersdrfer-47a.de/",
+    "icon": "fas fa-terminal",
+    "is_active": True,
+    "order": 27,
+}
+
+
+def before_zellij_removal():
+    model = migrate("secondary", BEFORE_ZELLIJ_REMOVAL)
+    for alias in ("default", "secondary"):  # Drop the rows of the earlier seeds.
+        model.objects.using(alias).all().delete()
+    return model
+
+
+def remove_zellij(model):
+    default_before = rows(model, "default")
+    migrate("secondary", [ZELLIJ_REMOVAL])
+    assert rows(model, "default") == default_before  # Only the migration connection changes.
+    after = rows(model, "secondary")
+    migrate("secondary", BEFORE_ZELLIJ_REMOVAL)
+    assert rows(model, "secondary") == after  # The reverse keeps the removal.
+    assert rows(model, "default") == default_before
+    return after
+
+
+@pytest.mark.parametrize("changes", [{}, {"name": "Terminal", "is_active": False, "order": 3}])
+def test_retired_zellij_tile_is_deleted(at_initial, changes):
+    model = before_zellij_removal()
+    for alias in ("default", "secondary"):
+        model.objects.using(alias).create(**{**ZELLIJ_TILE, **changes})
+    customize(model, "secondary", "Unrelated secondary")
+    unrelated = model.objects.using("secondary").filter(name="Unrelated secondary").values().get()
+
+    after = remove_zellij(model)
+
+    assert after == [unrelated]
+
+
+def test_zellij_named_tile_with_another_url_is_left_alone(at_initial):
+    model = before_zellij_removal()
+    model.objects.using("secondary").create(**{**ZELLIJ_TILE, "url": "https://owner.example/terminal/"})
+    before = rows(model, "secondary")
+
+    assert remove_zellij(model) == before
