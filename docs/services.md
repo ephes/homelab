@@ -192,6 +192,20 @@ Desktop instead, and ops-control removed the route). The seed entry `Zellij (stu
 is gone, and migration `0022_remove_retired_zellij_tile` deletes every installed tile
 that still links to `https://zellij.home.xn--wersdrfer-47a.de/`, whatever its name;
 other tiles stay. The reverse migration does not bring the tile back.
+
+Open WebUI was retired, and Mailgun Relay has an API with no dashboard. Migration
+`0023_refresh_service_tiles` deletes tiles whose URLs exactly match
+`https://open-webui.home.xn--wersdrfer-47a.de/` or `https://mailgun.home.xn--wersdrfer-47a.de/`,
+regardless of their names. It also renames `Takahe` to `GoToSocial` at
+`https://fedi.python-podcast.de/` and updates the description. The tile keeps its
+URL, icon, logo, active status and order. If a `GoToSocial` tile already exists,
+the rename is skipped. Reversing the migration keeps these changes. A fresh
+installation shows `GoToSocial` active at order 18.
+
+The deploy seed command adds missing tiles for Haushalt, Opaq, Fallakte, Chesslab,
+Weeknotes, Radarr, Sonarr, Prowlarr and Durchreiche at orders 31–39. The five
+client staging sites follow at orders 40–44 under names beginning with `Projekt`.
+
 After copying a missing logo, the command reloads the service under a database
 lock and saves only the logo and revision. Owner edits made during copying are
 preserved. If another writer has supplied a logo, that logo wins and the command

@@ -265,3 +265,96 @@ def test_zellij_named_tile_with_another_url_is_left_alone(at_initial):
     before = rows(model, "secondary")
 
     assert remove_zellij(model) == before
+
+
+TILE_REFRESH = ("core", "0023_refresh_service_tiles")
+BEFORE_TILE_REFRESH = [ZELLIJ_REMOVAL]
+OPEN_WEBUI_URL = "https://open-webui.home.xn--wersdrfer-47a.de/"
+MAILGUN_URL = "https://mailgun.home.xn--wersdrfer-47a.de/"
+FEDIVERSE_URL = "https://fedi.python-podcast.de/"
+
+
+@pytest.fixture
+def before_tile_refresh(at_initial):
+    return migrate("secondary", BEFORE_TILE_REFRESH)
+
+
+def apply_tile_refresh(model):
+    default_before = rows(model, "default")
+    migrate("secondary", [TILE_REFRESH])
+    assert rows(model, "default") == default_before
+    after = rows(model, "secondary")
+    migrate("secondary", BEFORE_TILE_REFRESH)
+    assert rows(model, "secondary") == after  # The reverse is a no-op.
+    assert rows(model, "default") == default_before
+    return after
+
+
+def test_tile_refresh_keeps_fresh_fediverse_tile_active(before_tile_refresh):
+    model = before_tile_refresh
+    apply_tile_refresh(model)
+
+    services = model.objects.using("secondary")
+    tile = services.get(name="GoToSocial")
+    assert tile.url == FEDIVERSE_URL
+    assert tile.description == "Fediverse server (GoToSocial) for python-podcast.de"
+    assert tile.icon == "fas fa-comment-dots"
+    assert tile.is_active is True
+    assert tile.order == 18
+    assert not services.filter(name__in=["Takahe", "Open WebUI"]).exists()
+
+
+def test_tile_refresh_deletes_only_exact_retired_urls(before_tile_refresh):
+    model = before_tile_refresh
+    for alias in ("default", "secondary"):
+        services = model.objects.using(alias)
+        customize(model, alias, "Open WebUI")
+        services.filter(name="Open WebUI").update(url=OPEN_WEBUI_URL.rstrip("/"))
+        services.create(name="Custom chat", url=OPEN_WEBUI_URL, is_active=False, order=50)
+        services.create(name="Custom relay", url=MAILGUN_URL)
+        services.create(name="Mailgun Relay", url=f"{MAILGUN_URL}api/")
+        customize(model, alias, "Takahe")  # Keep the focus on URL-based deletion.
+        customize(model, alias, "Unrelated service")
+    expected = [row for row in rows(model, "secondary") if row["name"] not in {"Custom chat", "Custom relay"}]
+
+    assert apply_tile_refresh(model) == expected
+
+
+@pytest.mark.parametrize("icon", ["fas fa-comment-dots", "fas fa-star", ""])
+def test_tile_refresh_renames_takahe_in_place(before_tile_refresh, icon):
+    model = before_tile_refresh
+    for alias in ("default", "secondary"):
+        tile = customize(model, alias, "Takahe")
+        model.objects.using(alias).filter(pk=tile.pk).update(url=FEDIVERSE_URL, icon=icon)
+
+    services = model.objects.using("secondary")
+    before = services.values().get(name="Takahe")
+    apply_tile_refresh(model)
+
+    after = services.values().get(name="GoToSocial")
+    assert after.pop("updated_at") != before.pop("updated_at")
+    assert after == {
+        **before,
+        "name": "GoToSocial",
+        "description": "Fediverse server (GoToSocial) for python-podcast.de",
+    }
+
+
+def test_tile_refresh_requires_both_takahe_name_and_url(before_tile_refresh):
+    model = before_tile_refresh
+    services = model.objects.using("secondary")
+    services.filter(name="Takahe").update(url="https://owner.example/fediverse/")
+    services.create(name="Custom Fediverse", url=FEDIVERSE_URL)
+    services.filter(name="Open WebUI").delete()
+    before = rows(model, "secondary")
+
+    assert apply_tile_refresh(model) == before
+
+
+def test_tile_refresh_leaves_both_fediverse_tiles_when_gotosocial_exists(before_tile_refresh):
+    model = before_tile_refresh
+    model.objects.using("secondary").filter(name="Open WebUI").delete()
+    customize(model, "secondary", "GoToSocial")
+    before = rows(model, "secondary")
+
+    assert apply_tile_refresh(model) == before

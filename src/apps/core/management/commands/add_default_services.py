@@ -175,8 +175,8 @@ class Command(BaseCommand):
                 "order": 17,
             },
             {
-                "name": "Takahe",
-                "description": "Fediverse server for python-podcast.de",
+                "name": "GoToSocial",
+                "description": "Fediverse server (GoToSocial) for python-podcast.de",
                 "url": "https://fedi.python-podcast.de/",
                 "icon": "fas fa-comment-dots",
                 "order": 18,
@@ -188,14 +188,7 @@ class Command(BaseCommand):
                 "icon": "fab fa-mastodon",
                 "order": 19,
             },
-            {
-                "name": "Open WebUI",
-                "description": "Chat interface for local LLMs (Open WebUI)",
-                "url": "https://open-webui.home.xn--wersdrfer-47a.de/",
-                "icon": "fas fa-comments",
-                "logo_filename": "open-webui.png",
-                "order": 20,
-            },
+            # Open WebUI, order 20, was retired. Migration 0023 removes its tile.
             {
                 "name": "Echoport",
                 "description": "Backup orchestration service for SQLite databases and config files",
@@ -252,13 +245,7 @@ class Command(BaseCommand):
             },
             # Zellij (studio), order 27, was retired on 2026-11-27; migration 0022
             # deletes its installed tile.
-            {
-                "name": "Mailgun Relay",
-                "description": "Self-hosted Mailgun-API-compatible SMTP relay for django-anymail clients",
-                "url": "https://mailgun.home.xn--wersdrfer-47a.de/",
-                "icon": "fas fa-envelope-square",
-                "order": 28,
-            },
+            # Mailgun Relay, order 28, is API-only. Migration 0023 removes its tile.
             {
                 "name": "Recorder",
                 "description": (
@@ -275,6 +262,105 @@ class Command(BaseCommand):
                 "url": "https://work.home.xn--wersdrfer-47a.de/",
                 "icon": "fas fa-tasks",
                 "order": 30,
+            },
+            {
+                "name": "Haushalt",
+                "description": "Family finance dashboard",
+                "url": "https://haushalt.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-wallet",
+                "order": 31,
+            },
+            {
+                "name": "Opaq",
+                "description": "Company cash overview",
+                "url": "https://opaq.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-chart-line",
+                "order": 32,
+            },
+            {
+                "name": "Fallakte",
+                "description": "Private legal case files",
+                "url": "https://akte.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-folder-open",
+                "order": 33,
+            },
+            {
+                "name": "Chesslab",
+                "description": "Chess spaced-repetition trainer",
+                "url": "https://chess.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-chess-knight",
+                "order": 34,
+            },
+            {
+                "name": "Weeknotes",
+                "description": "Weeknotes steering inbox and draft review",
+                "url": "https://weeknotes.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-inbox",
+                "order": 35,
+            },
+            {
+                "name": "Radarr",
+                "description": "Movie download automation",
+                "url": "https://radarr.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-film",
+                "order": 36,
+            },
+            {
+                "name": "Sonarr",
+                "description": "TV series download automation",
+                "url": "https://sonarr.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-tv",
+                "order": 37,
+            },
+            {
+                "name": "Prowlarr",
+                "description": "Indexer management for Radarr and Sonarr",
+                "url": "https://prowlarr.home.xn--wersdrfer-47a.de/",
+                "icon": "fas fa-list",
+                "order": 38,
+            },
+            {
+                "name": "Durchreiche",
+                "description": "Invite-only inquiry exchange",
+                "url": "https://durchreiche.wersdoerfer.de/",
+                "icon": "fas fa-exchange-alt",
+                "order": 39,
+            },
+            # Client project staging sites.
+            {
+                "name": "Projekt GGS Lennestraße (Staging)",
+                "description": "Client project staging site for GGS Lennestraße",
+                "url": "https://ggs.staging.django-cast.com/",
+                "icon": "fas fa-flask",
+                "order": 40,
+            },
+            {
+                "name": "Projekt Villa Kunterbunt (Staging)",
+                "description": "Client project staging site for Villa Kunterbunt",
+                "url": "https://villakunterbunt.staging.django-cast.com/",
+                "icon": "fas fa-flask",
+                "order": 41,
+            },
+            {
+                "name": "Projekt Django Chat (Staging)",
+                "description": "Client project staging site for Django Chat",
+                "url": "https://djangochat.staging.django-cast.com/",
+                "icon": "fas fa-flask",
+                "order": 42,
+            },
+            {
+                "name": "Projekt Heis (Staging)",
+                "description": "Client project staging site for Heis",
+                "url": "https://heis.staging.django-cast.com/",
+                "icon": "fas fa-flask",
+                "order": 43,
+            },
+            {
+                "name": "Projekt Marina (Staging)",
+                "description": "Client project staging site for Marina",
+                "url": "https://marina.staging.django-cast.com/",
+                "icon": "fas fa-flask",
+                "order": 44,
             },
         ]
 

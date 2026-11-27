@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Remove the Open WebUI and Mailgun Relay dashboard tiles by exact URL. Migration
+  0023 also renames the Python Podcast Fediverse tile from Takahe to GoToSocial
+  when the GoToSocial name is available.
+
+- Add default tiles for Haushalt, Opaq, Fallakte, Chesslab, Weeknotes, Radarr,
+  Sonarr, Prowlarr, Durchreiche and five client staging sites.
+
 - Remove the Zellij (studio) tile: Zellij web was retired on 2026-11-27. The
   default services no longer offer it, and migration 0022 deletes an installed
   tile that still links to `https://zellij.home.xn--wersdrfer-47a.de/`.

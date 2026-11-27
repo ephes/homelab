@@ -136,6 +136,47 @@ def test_add_default_services_includes_work_app():
     assert work.order == 30
 
 
+def test_add_default_services_offers_gotosocial_and_omits_retired_tiles(logo_dir):
+    call_command("add_default_services", stdout=StringIO())
+
+    assert not Service.objects.filter(name__in=["Takahe", "Open WebUI", "Mailgun Relay"]).exists()
+    assert not Service.objects.filter(
+        url__in=["https://open-webui.home.xn--wersdrfer-47a.de/", "https://mailgun.home.xn--wersdrfer-47a.de/"]
+    ).exists()
+    gotosocial = Service.objects.get(name="GoToSocial")
+    assert gotosocial.url == "https://fedi.python-podcast.de/"
+    assert gotosocial.description == "Fediverse server (GoToSocial) for python-podcast.de"
+    assert gotosocial.icon == "fas fa-comment-dots"
+    assert gotosocial.is_active is True
+    assert gotosocial.order == 18
+
+
+def test_add_default_services_adds_tiles_after_work_in_order(logo_dir):
+    call_command("add_default_services", stdout=StringIO())
+
+    expected = [
+        ("Haushalt", "https://haushalt.home.xn--wersdrfer-47a.de/"),
+        ("Opaq", "https://opaq.home.xn--wersdrfer-47a.de/"),
+        ("Fallakte", "https://akte.home.xn--wersdrfer-47a.de/"),
+        ("Chesslab", "https://chess.home.xn--wersdrfer-47a.de/"),
+        ("Weeknotes", "https://weeknotes.home.xn--wersdrfer-47a.de/"),
+        ("Radarr", "https://radarr.home.xn--wersdrfer-47a.de/"),
+        ("Sonarr", "https://sonarr.home.xn--wersdrfer-47a.de/"),
+        ("Prowlarr", "https://prowlarr.home.xn--wersdrfer-47a.de/"),
+        ("Durchreiche", "https://durchreiche.wersdoerfer.de/"),
+        ("Projekt GGS Lennestraße (Staging)", "https://ggs.staging.django-cast.com/"),
+        ("Projekt Villa Kunterbunt (Staging)", "https://villakunterbunt.staging.django-cast.com/"),
+        ("Projekt Django Chat (Staging)", "https://djangochat.staging.django-cast.com/"),
+        ("Projekt Heis (Staging)", "https://heis.staging.django-cast.com/"),
+        ("Projekt Marina (Staging)", "https://marina.staging.django-cast.com/"),
+    ]
+    tiles = list(Service.objects.filter(order__range=(31, 44)).order_by("order"))
+    assert [(tile.name, tile.url) for tile in tiles] == expected
+    assert [tile.order for tile in tiles] == list(range(31, 45))
+    assert all(tile.is_active and tile.description and tile.icon.startswith("fas fa-") for tile in tiles)
+    assert all(not tile.logo_file for tile in tiles)
+
+
 # --- logo files and transaction rollback ---------------------------------------------
 
 
