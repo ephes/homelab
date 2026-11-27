@@ -272,6 +272,8 @@ BEFORE_TILE_REFRESH = [ZELLIJ_REMOVAL]
 OPEN_WEBUI_URL = "https://open-webui.home.xn--wersdrfer-47a.de/"
 MAILGUN_URL = "https://mailgun.home.xn--wersdrfer-47a.de/"
 FEDIVERSE_URL = "https://fedi.python-podcast.de/"
+TAKAHE_DESCRIPTION = "Fediverse server for python-podcast.de"
+GOTOSOCIAL_DESCRIPTION = "Fediverse server (GoToSocial) for python-podcast.de"
 
 
 @pytest.fixture
@@ -297,7 +299,7 @@ def test_tile_refresh_keeps_fresh_fediverse_tile_active(before_tile_refresh):
     services = model.objects.using("secondary")
     tile = services.get(name="GoToSocial")
     assert tile.url == FEDIVERSE_URL
-    assert tile.description == "Fediverse server (GoToSocial) for python-podcast.de"
+    assert tile.description == GOTOSOCIAL_DESCRIPTION
     assert tile.icon == "fas fa-comment-dots"
     assert tile.is_active is True
     assert tile.order == 18
@@ -325,7 +327,9 @@ def test_tile_refresh_renames_takahe_in_place(before_tile_refresh, icon):
     model = before_tile_refresh
     for alias in ("default", "secondary"):
         tile = customize(model, alias, "Takahe")
-        model.objects.using(alias).filter(pk=tile.pk).update(url=FEDIVERSE_URL, icon=icon)
+        model.objects.using(alias).filter(pk=tile.pk).update(
+            url=FEDIVERSE_URL, icon=icon, description=TAKAHE_DESCRIPTION
+        )
 
     services = model.objects.using("secondary")
     before = services.values().get(name="Takahe")
@@ -336,8 +340,34 @@ def test_tile_refresh_renames_takahe_in_place(before_tile_refresh, icon):
     assert after == {
         **before,
         "name": "GoToSocial",
-        "description": "Fediverse server (GoToSocial) for python-podcast.de",
+        "description": GOTOSOCIAL_DESCRIPTION,
     }
+
+
+@pytest.mark.parametrize("description", ["Owner text", ""], ids=["custom", "blank"])
+def test_tile_refresh_preserves_owner_description(before_tile_refresh, description):
+    model = before_tile_refresh
+    services = model.objects.using("secondary")
+    services.filter(name="Takahe").update(description=description)
+    tile_pk = services.get(name="Takahe").pk
+
+    apply_tile_refresh(model)
+
+    tile = services.get(pk=tile_pk)
+    assert (tile.name, tile.description) == ("GoToSocial", description)
+
+
+def test_tile_refresh_preserves_fediverse_url_without_trailing_slash(before_tile_refresh):
+    model = before_tile_refresh
+    services = model.objects.using("secondary")
+    url = "https://fedi.python-podcast.de"
+    services.filter(name="Takahe").update(url=url)
+    tile_pk = services.get(name="Takahe").pk
+
+    apply_tile_refresh(model)
+
+    tile = services.get(pk=tile_pk)
+    assert (tile.name, tile.url, tile.description) == ("GoToSocial", url, GOTOSOCIAL_DESCRIPTION)
 
 
 def test_tile_refresh_requires_both_takahe_name_and_url(before_tile_refresh):
@@ -358,3 +388,16 @@ def test_tile_refresh_leaves_both_fediverse_tiles_when_gotosocial_exists(before_
     before = rows(model, "secondary")
 
     assert apply_tile_refresh(model) == before
+
+
+@pytest.mark.parametrize("url", [OPEN_WEBUI_URL, MAILGUN_URL], ids=["open-webui", "mailgun"])
+def test_tile_refresh_clears_retired_gotosocial_collision_before_renaming(before_tile_refresh, url):
+    model = before_tile_refresh
+    services = model.objects.using("secondary")
+    retired = services.create(name="GoToSocial", url=url)
+    takahe = services.get(name="Takahe")
+
+    apply_tile_refresh(model)
+
+    assert not services.filter(pk=retired.pk).exists()
+    assert services.get(name="GoToSocial").pk == takahe.pk

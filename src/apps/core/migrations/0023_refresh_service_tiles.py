@@ -1,28 +1,37 @@
 """Remove tiles for two retired dashboard URLs and rename the Fediverse tile."""
 
 from django.db import migrations
+from django.db.models import Case, F, TextField, Value, When
 from django.db.models.functions import Now
 
 RETIRED_URLS = (
     "https://open-webui.home.xn--wersdrfer-47a.de/",
     "https://mailgun.home.xn--wersdrfer-47a.de/",
 )
-FEDIVERSE_URL = "https://fedi.python-podcast.de/"
+FEDIVERSE_URLS = (
+    "https://fedi.python-podcast.de/",
+    "https://fedi.python-podcast.de",
+)
+TAKAHE_DESCRIPTION = "Fediverse server for python-podcast.de"
+GOTOSOCIAL_DESCRIPTION = "Fediverse server (GoToSocial) for python-podcast.de"
 
 
 def refresh_service_tiles(apps, schema_editor):
     Service = apps.get_model("core", "Service")
     services = Service.objects.using(schema_editor.connection.alias)
 
+    services.filter(url__in=RETIRED_URLS).delete()
+
     if not services.filter(name="GoToSocial").exists():
-        # Both seeds use the same icon, so leave it and any owner override in place.
-        services.filter(name="Takahe", url=FEDIVERSE_URL).update(
+        services.filter(name="Takahe", url__in=FEDIVERSE_URLS).update(
             name="GoToSocial",
-            description="Fediverse server (GoToSocial) for python-podcast.de",
+            description=Case(
+                When(description=TAKAHE_DESCRIPTION, then=Value(GOTOSOCIAL_DESCRIPTION)),
+                default=F("description"),
+                output_field=TextField(),
+            ),
             updated_at=Now(),
         )
-
-    services.filter(url__in=RETIRED_URLS).delete()
 
 
 class Migration(migrations.Migration):

@@ -196,11 +196,13 @@ other tiles stay. The reverse migration does not bring the tile back.
 Open WebUI was retired, and Mailgun Relay has an API with no dashboard. Migration
 `0023_refresh_service_tiles` deletes tiles whose URLs exactly match
 `https://open-webui.home.xn--wersdrfer-47a.de/` or `https://mailgun.home.xn--wersdrfer-47a.de/`,
-regardless of their names. It also renames `Takahe` to `GoToSocial` at
-`https://fedi.python-podcast.de/` and updates the description. The tile keeps its
-URL, icon, logo, active status and order. If a `GoToSocial` tile already exists,
-the rename is skipped. Reversing the migration keeps these changes. A fresh
-installation shows `GoToSocial` active at order 18.
+regardless of their names. After those deletions, it renames `Takahe` to
+`GoToSocial` if the name is available and the tile links to
+`https://fedi.python-podcast.de` with or without a trailing slash. The description
+changes only if it still matches the original seed text, `Fediverse server for
+python-podcast.de`. The tile keeps its stored URL, icon, logo, active status and
+order. Reversing the migration keeps these changes. A fresh installation shows
+`GoToSocial` active at order 18.
 
 The deploy seed command adds missing tiles for Haushalt, Opaq, Fallakte, Chesslab,
 Weeknotes, Radarr, Sonarr, Prowlarr and Durchreiche at orders 31–39. The five

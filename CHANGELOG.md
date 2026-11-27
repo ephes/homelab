@@ -4,7 +4,8 @@
 
 - Remove the Open WebUI and Mailgun Relay dashboard tiles by exact URL. Migration
   0023 also renames the Python Podcast Fediverse tile from Takahe to GoToSocial
-  when the GoToSocial name is available.
+  when the name is available after those deletions. It accepts the Fediverse URL
+  with or without a trailing slash and preserves custom descriptions.
 
 - Add default tiles for Haushalt, Opaq, Fallakte, Chesslab, Weeknotes, Radarr,
   Sonarr, Prowlarr, Durchreiche and five client staging sites.
