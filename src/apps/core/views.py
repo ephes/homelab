@@ -1,7 +1,12 @@
+from django.conf import settings
+from django.http import Http404, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.http import require_http_methods
 from django.views.generic import ListView
 
+from . import minecraft
 from .client_addresses import canonical_ip, client_address, is_tailscale
 from .models import Service
 
@@ -17,6 +22,35 @@ class HomeView(ListView):
 
     def get_queryset(self):
         return Service.objects.filter(is_active=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["minecraft_control_enabled"] = bool(settings.MINECRAFT_CONTROL_UNIT)
+        return context
+
+
+@csrf_exempt  # Apply CSRF protection after checking whether the endpoint is enabled.
+def minecraft_power(request):
+    if not settings.MINECRAFT_CONTROL_UNIT:
+        raise Http404
+    return _minecraft_power(request)
+
+
+@csrf_protect
+@never_cache
+@require_http_methods(["GET", "POST"])
+def _minecraft_power(request):
+    if request.method == "GET":
+        return JsonResponse(minecraft.status())
+
+    action = request.POST.get("action")
+    if action not in ("start", "stop"):
+        return JsonResponse({"error": "Ungültige Aktion."}, status=400)
+
+    if not minecraft.set_power(action):
+        return JsonResponse({"error": "Minecraft-Befehl fehlgeschlagen."}, status=502)
+
+    return JsonResponse({"state": "starting" if action == "start" else "stopping"}, status=202)
 
 
 @never_cache

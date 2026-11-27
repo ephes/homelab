@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Home - Homelab{% endblock %}
 
@@ -28,6 +29,15 @@
             <a href="{{ service.url }}" class="service-link" target="_blank">
                 Open Service <i class="fas fa-external-link-alt"></i>
             </a>
+        {% endif %}
+        {% if minecraft_control_enabled and service.name == "Minecraft" %}
+            <form id="minecraft-power" class="minecraft-power" action="{% url 'core:minecraft-power' %}" method="post" lang="de">
+                {% csrf_token %}
+                <p role="status">Unbekannt</p>
+                <button type="submit" class="service-link" disabled>Starten</button>
+                <p role="alert"></p>
+            </form>
+            <script src="{% static 'core/js/minecraft.js' %}" defer></script>
         {% endif %}
     </div>
     {% empty %}

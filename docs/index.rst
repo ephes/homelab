@@ -16,6 +16,7 @@ Homelab Documentation
    :caption: Reference
 
    usage
+   services
    development
    troubleshooting
    traefik-auth

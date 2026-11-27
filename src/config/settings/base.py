@@ -2,10 +2,12 @@
 Base settings for homelab project.
 """
 
+import re
 import warnings
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # BASE_DIR is the ``src`` directory (static, media and the default database
@@ -156,6 +158,18 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Admin URL
 ADMIN_URL = env("DJANGO_ADMIN_URL", default="admin/")
+
+
+def _minecraft_control_unit(default=""):
+    unit = env("MINECRAFT_CONTROL_UNIT", default=default)
+    if unit and not re.fullmatch(r"[A-Za-z0-9._][A-Za-z0-9@._-]*\.service", unit):
+        raise ImproperlyConfigured("MINECRAFT_CONTROL_UNIT must be empty or a systemd .service name.")
+    return unit
+
+
+MINECRAFT_CONTROL_UNIT = _minecraft_control_unit()
+MINECRAFT_PORT_HOST = env("MINECRAFT_PORT_HOST", default="127.0.0.1")
+MINECRAFT_PORT = env.int("MINECRAFT_PORT", default=25565)
 
 # Logging
 LOGGING = {

@@ -192,6 +192,23 @@ body {
     font-size: 0.875rem;
 }
 
+.minecraft-power button {
+    margin-top: 0.5rem;
+    border: 0;
+    font: inherit;
+    cursor: pointer;
+}
+
+.minecraft-power button:disabled {
+    background-color: var(--gray-600);
+    cursor: default;
+}
+
+.minecraft-power [role="alert"]:not(:empty) {
+    margin-top: 0.5rem;
+    color: var(--danger-color);
+}
+
 .no-services {
     grid-column: 1 / -1;
     text-align: center;

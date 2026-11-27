@@ -5,6 +5,9 @@ Production settings for homelab project.
 from pathlib import Path
 
 from .base import *  # noqa
+from .base import _minecraft_control_unit
+
+MINECRAFT_CONTROL_UNIT = _minecraft_control_unit(default="minecraft-java.service")
 
 # DEBUG
 DEBUG = False

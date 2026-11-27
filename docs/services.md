@@ -14,6 +14,41 @@ Services in Homelab represent any web-based application or tool you run on your 
 - **Status**: Active or inactive
 - **Order**: Display position
 
+## Minecraft power switch
+
+The **Minecraft** tile shows the local Java Edition server's status and lets you
+start or stop it. The tile shows **Läuft** once systemd reports the unit active and
+the game port accepts a TCP connection. If systemd reports the unit active while
+the game port is still closed, the tile shows **Startet…** and enables **Stoppen**
+so you can stop a hung server. The button is disabled while systemd activates or
+deactivates the unit. The tile refreshes every 2.5 seconds during startup and
+shutdown and every 30 seconds in stable states. **Stoppen** asks for confirmation
+because stopping the server disconnects all players.
+
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `MINECRAFT_CONTROL_UNIT` | `minecraft-java.service` in production, empty in base, local and test | Local systemd `.service` unit. An empty value hides the switch and disables its endpoint. |
+| `MINECRAFT_PORT_HOST` | `127.0.0.1` | Host for the TCP readiness check. |
+| `MINECRAFT_PORT` | `25565` | TCP port for the readiness check. |
+
+Production needs the ops-managed polkit rule granting the `homelab` system user
+permission to start and stop `minecraft-java.service` over the system D-Bus.
+If you configure a different unit, its start and stop permissions must match the
+configured name. Reading the unit status requires no special privileges.
+
+The power endpoint follows the dashboard's Traefik access rules. Clients on the
+LAN or Tailnet can use it directly, and external clients use the dashboard's
+shared Basic Auth credentials. Dashboard actions require a Django CSRF token.
+[Traefik authentication](traefik-auth.md)
+
+The endpoint returns HTTP 404 for every request method when the control unit is
+unset. When enabled, its GET response includes `state` and `active`. The `active`
+flag indicates that systemd confirmed the unit is active, independently of the
+TCP readiness check.
+
+The tile script's test (`tests/core/test_minecraft_ui.cjs`) runs through `node --test`
+when Node.js 18 or newer is on `PATH`; otherwise pytest skips it.
+
 ## Service Model
 
 ### Database Schema
@@ -394,7 +429,7 @@ just manage loaddata services_backup.json
 
 ## Service Health Monitoring
 
-While Homelab doesn't include built-in health monitoring, you can:
+For general service monitoring, you can use these options.
 
 1. **Visual inspection**: Regularly check dashboard links
 2. **External monitoring**: Use tools like Uptime Kuma

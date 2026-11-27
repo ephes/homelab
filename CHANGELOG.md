@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add a start and stop switch to the Minecraft dashboard tile with live systemd
+  and TCP readiness status. Once systemd marks the unit active, the switch can
+  stop the server even while the game port is closed. Production uses
+  `minecraft-java.service` by default.
+
 - Remove the Open WebUI and Mailgun Relay dashboard tiles by exact URL. Migration
   0023 also renames the Python Podcast Fediverse tile from Takahe to GoToSocial
   when the name is available after those deletions. It accepts the Fediverse URL

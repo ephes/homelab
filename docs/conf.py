@@ -49,7 +49,6 @@ exclude_patterns = [
     "contributing.md",
     "installation.md",
     "models.md",
-    "services.md",
     "settings.md",
     "testing.md",
 ]

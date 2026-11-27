@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from .isolation import REPO_ROOT, load_settings, make_project_root, settings_module_bootstrap
+from .isolation import REPO_ROOT, load_settings, make_project_root, run_python, settings_module_bootstrap
 
 SETTINGS_DIR = REPO_ROOT / "src" / "config" / "settings"
 ENV_READ = re.compile(r"""\benv(?:\.[a-z_]+)?\(\s*["']([A-Z][A-Z0-9_]*)["']""")
@@ -120,3 +120,48 @@ def test_sqlite_transactions_wait_before_admin_reads(tmp_path, module):
         {"DJANGO_SECRET_KEY": "synthetic-contract-key", "DATABASE_URL": "sqlite:///synthetic.sqlite3"},
     )
     assert settings["DATABASES"]["default"]["OPTIONS"]["transaction_mode"] == "IMMEDIATE"
+
+
+@pytest.mark.parametrize(
+    ("module", "unit"), [("base", ""), ("local", ""), ("test", ""), ("production", "minecraft-java.service")]
+)
+def test_minecraft_defaults(tmp_path, module, unit):
+    root = make_project_root(tmp_path)
+    settings = load_settings(
+        root, settings_module_bootstrap(f"config.settings.{module}"), {"DJANGO_SECRET_KEY": "synthetic-contract-key"}
+    )
+
+    assert settings["MINECRAFT_CONTROL_UNIT"] == unit
+    assert settings["MINECRAFT_PORT_HOST"] == "127.0.0.1"
+    assert settings["MINECRAFT_PORT"] == 25565
+
+
+@pytest.mark.parametrize("unit", ["", "minecraft-java@world_2.service"])
+def test_minecraft_environment_overrides_production_defaults(tmp_path, unit):
+    root = make_project_root(tmp_path)
+    settings = load_settings(
+        root,
+        settings_module_bootstrap("config.settings.production"),
+        {
+            "DJANGO_SECRET_KEY": "synthetic-contract-key",
+            "MINECRAFT_CONTROL_UNIT": unit,
+            "MINECRAFT_PORT_HOST": "::1",
+            "MINECRAFT_PORT": "25566",
+        },
+    )
+
+    assert settings["MINECRAFT_CONTROL_UNIT"] == unit
+    assert settings["MINECRAFT_PORT_HOST"] == "::1"
+    assert settings["MINECRAFT_PORT"] == 25566
+
+
+@pytest.mark.parametrize("unit", ["--option.service", "path/server.service", "minecraft*.service", "minecraft.socket"])
+def test_minecraft_rejects_invalid_unit_settings(tmp_path, unit):
+    result = run_python(
+        make_project_root(tmp_path),
+        "from config.settings import base",
+        {"MINECRAFT_CONTROL_UNIT": unit},
+    )
+
+    assert result.returncode != 0
+    assert "ImproperlyConfigured: MINECRAFT_CONTROL_UNIT must be empty or a systemd .service name." in result.stderr
